@@ -1,4 +1,4 @@
-import express from "express";
+import express , { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -11,7 +11,7 @@ import userRoutes from "./routes/user.routes.js";
 import creditRoutes from "./routes/credit.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 
-const app = express();
+const app: Express = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
