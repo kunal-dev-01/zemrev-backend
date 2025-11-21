@@ -1,7 +1,5 @@
-import env from "./env.js";
-
 export const corsOptions = {
-  origin: env.CORS_ORIGIN?.split(",").map((o: string) => o.trim()) || [
+  origin: process.env.CORS_ORIGIN?.split(",").map((o: string) => o.trim()) || [
     "http://localhost:3000",
   ],
   credentials: true,

@@ -11,7 +11,8 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "joi": "^17.11.0"
+    "joi": "^17.11.0",
+    "@zemrev/models": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
