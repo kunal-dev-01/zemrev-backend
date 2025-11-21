@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import AppError from "./appError.js";
+import {AppError} from "@zemrev/utils";
 
 interface TokenPayload {
   userId: string;
