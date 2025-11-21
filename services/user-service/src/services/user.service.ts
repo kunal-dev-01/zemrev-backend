@@ -12,7 +12,11 @@ export class UserService {
   static getSafeUser(user: IUser) {
     const userObj = user.toObject();
 
+    delete userObj.id;
     delete userObj._id;
+    delete userObj.stripeCustomerId;
+    delete userObj.subscriptionId;
+    delete userObj.__v;
     delete userObj.googleId
     delete userObj.password;
     delete userObj.emailVerificationToken;
