@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -5,11 +6,11 @@ import helmet from "helmet";
 import compression from "compression";
 import { corsOptions } from "@zemrev/config";
 import { globalErrorHandler } from "@zemrev/utils";
-import { getEnv } from "@zemrev/config";
+import { validateEnv } from "@zemrev/config";
 
 import authRoutes from "./routes/auth.routes.js";
 
-const env = getEnv();
+export const env = validateEnv(process.env);
 const app = express();
 
 app.set("trust proxy", 1);

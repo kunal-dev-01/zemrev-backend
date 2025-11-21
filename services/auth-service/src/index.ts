@@ -1,11 +1,9 @@
 import app from "./app.js";
 import { connectDB } from "@zemrev/db";
 import { handleUnhandledRejection, handleUncaughtException } from "@zemrev/utils";
-import { getEnv } from "@zemrev/config";
+import { env } from "./app.js";
 
 handleUncaughtException();
-
-const env = getEnv();
 
 connectDB().then(() => {
   const server = app.listen(env.PORT, () => {

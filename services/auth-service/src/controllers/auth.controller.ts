@@ -3,9 +3,8 @@ import AuthService from "../services/auth.service.js";
 import { PlanType } from "@zemrev/models";
 import googleService from "../services/googleAuth.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
-import { getEnv } from "@zemrev/config";
+import { env } from "../app.js";
 
-const env = getEnv();
 
 class AuthController {
   private static readonly REFRESH_TOKEN_COOKIE_OPTIONS = {

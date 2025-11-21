@@ -11,7 +11,8 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@types/express": "^4.17.21"
+    "@types/express": "^4.17.21",
+    "@zemrev/models": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

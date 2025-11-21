@@ -1,10 +1,7 @@
 import mongoose from "mongoose";
-import { getEnv } from "@zemrev/config";
-
-const env = getEnv();
 
 export const connectDB = async (): Promise<void> => {
-  const isDev = env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === "development";
   const options: mongoose.ConnectOptions = {
     maxPoolSize: 10,
     minPoolSize: 2,
@@ -19,7 +16,7 @@ export const connectDB = async (): Promise<void> => {
   };
 
   try {
-    const conn = await mongoose.connect(env.MONGODB_URL, options);
+    const conn = await mongoose.connect(process.env.MONGODB_URL as string, options);
     console.log("\n" + "=".repeat(50));
     console.log(`✅ MongoDB Connected: ${conn.connection.name} @ ${conn.connection.host}`);
     console.log(`⚡ Connection Pool Size: ${options.maxPoolSize}`);
