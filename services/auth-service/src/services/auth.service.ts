@@ -1,348 +1,258 @@
-import { User, GuestUser, PlanType, UserRole, SubscriptionStatus, SignupData } from "@zemrev/models";
+import {
+  User,
+  GuestUser,
+  PlanType,
+  UserRole,
+  SubscriptionStatus,
+  SignupData,
+  getPlanDetails,
+} from "@zemrev/models";
+
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
-import { getPlanDetails } from "@zemrev/models";
 import TwoFactorService from "./twoFactor.service.js";
 
 class AuthService {
-  static async signup(data: SignupData & { fingerprint?: string }): Promise<any> {
-    const existingUser = await User.findOne({ email: data.email });
+  /**
+   * -------------------------------
+   * USER SIGNUP
+   * -------------------------------
+   */
+  static async signup(
+    data: SignupData & { fingerprint?: string }
+  ): Promise<any> {
+    const { email, selectedPlan, fingerprint } = data;
+
+    const existingUser = await User.findOne({ email });
     if (existingUser) throw new AppError("Email already registered", 400);
 
-    if (!data.selectedPlan) {
-      throw new AppError("Please select a plan", 400);
-    }
-
-    if (!Object.values(PlanType).includes(data.selectedPlan)) {
+    if (!selectedPlan) throw new AppError("Please select a plan", 400);
+    if (!Object.values(PlanType).includes(selectedPlan)) {
       throw new AppError("Invalid plan selection", 400);
     }
 
-    const planDetails = getPlanDetails(data.selectedPlan);
+    const planDetails = getPlanDetails(selectedPlan);
 
+    // Next Credit Reset = Tomorrow 00:00 UTC
     const nextReset = new Date();
     nextReset.setUTCHours(0, 0, 0, 0);
     nextReset.setUTCDate(nextReset.getUTCDate() + 1);
 
-    if (data.fingerprint) {
+    /** Prevent multiple accounts from same device per day */
+    if (fingerprint) {
       const guestUser = await GuestUser.findOne({
-        fingerprint: data.fingerprint,
+        fingerprint,
         isConverted: true,
       });
 
-      if (guestUser && guestUser.convertedAt) {
-        const now = new Date();
-        const convertedDate = new Date(guestUser.convertedAt);
+      if (guestUser?.convertedAt) {
+        const today = new Date();
+        const converted = new Date(guestUser.convertedAt);
 
-        const isSameDay = (
-          now.getUTCFullYear() === convertedDate.getUTCFullYear() &&
-          now.getUTCMonth() === convertedDate.getUTCMonth() &&
-          now.getUTCDate() === convertedDate.getUTCDate()
-        );
+        const sameDay =
+          today.getUTCFullYear() === converted.getUTCFullYear() &&
+          today.getUTCMonth() === converted.getUTCMonth() &&
+          today.getUTCDate() === converted.getUTCDate();
 
-        if (isSameDay) {
+        if (sameDay)
           throw new AppError(
-            "This device was already used to create an account today. Please login.",
+            "This device already created an account today. Please login.",
             403
           );
-        }
       }
     }
 
-    const requiresPayment = data.selectedPlan !== PlanType.CUSTOM;
+    const requiresPayment = selectedPlan !== PlanType.CUSTOM;
 
+    /** CREATE USER */
     const user = await User.create({
       fullName: data.fullName,
-      email: data.email,
+      email,
       password: data.password,
-      planType: data.selectedPlan,
-      planActive: false,
+      planType: selectedPlan,
       plan: planDetails,
+      planActive: false,
       credits: 0,
       creditsUsed: 0,
       nextCreditReset: nextReset,
       subscriptionStatus: SubscriptionStatus.INACTIVE,
       role: UserRole.USER,
-      registrationFingerprint: data.fingerprint,
+      registrationFingerprint: fingerprint,
     });
 
-    if (data.fingerprint) {
+    /** Update guest record */
+    if (fingerprint) {
       await GuestUser.findOneAndUpdate(
-        { fingerprint: data.fingerprint, isConverted: false },
+        { fingerprint, isConverted: false },
         {
           isConverted: true,
-          convertedToEmail: data.email,
           convertedAt: new Date(),
+          convertedToEmail: email,
         }
       );
     }
 
-    const verificationToken = JWTService.generateEmailVerificationToken();
-    user.emailVerificationToken = JWTService.hashToken(verificationToken);
-    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    /** EMAIL VERIFICATION TOKEN */
+    const token = JWTService.generateEmailVerificationToken();
+    user.emailVerificationToken = JWTService.hashToken(token);
+    user.emailVerificationExpires = new Date(Date.now() + 86400000);
     await user.save();
 
-    // TODO: Send email via queue
-    console.log(`📧 Email verification link (development): ${verificationToken}`);
+    console.log(`Email verification code: ${token}`);
 
+    /** LOGIN TOKENS */
     const tokens = JWTService.generateTokenPair({
-      userId: user._id.toString(),
+      userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(user._id.toString(), tokens.refreshToken);
+    await redisService.storeRefreshToken(user.id, tokens.refreshToken);
 
     return {
-      user: {
-        _id: user._id.toString(),
-        fullName: user.fullName,
-        email: user.email,
-        plan: user.plan,
-        planType: user.planType,
-        planActive: user.planActive,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        authProvider: user.authProvider,
-        credits: user.credits,
-        creditsUsed: user.creditsUsed,
-        nextCreditReset: user.nextCreditReset,
-        isActive: user.isActive,
-        isBlocked: user.isBlocked,
-        twoFactorEnabled: user.twoFactorEnabled,
-        subscriptionStatus: user.subscriptionStatus,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
+      user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       requiresPayment,
     };
   }
 
-  static async verifyEmail(verificationToken: string): Promise<boolean> {
-    const hashedToken = JWTService.hashToken(verificationToken);
-    const user = await User.findOne({
-      emailVerificationToken: hashedToken,
-      emailVerificationExpires: { $gt: Date.now() },
-    });
-
-    if (!user) throw new AppError("Invalid or expired token", 400);
-
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
-    user.isEmailVerified = true;
-    await user.save({ validateModifiedOnly: true });
-
-    return true;
-  }
-
-  static async login(email: string, password: string, deviceInfo?: string): Promise<any> {
-    const user = await User.findOne({ email, isActive: true }).select("+password +twoFactorSecret +superKey");
+  /**
+   * -------------------------------
+   * LOGIN
+   * -------------------------------
+   */
+  static async login(
+    email: string,
+    password: string,
+    deviceInfo?: string
+  ): Promise<any> {
+    const user = await User.findOne({ email, isActive: true }).select(
+      "+password +twoFactorSecret +superKey"
+    );
 
     if (!user || !(await user.comparePassword(password))) {
       throw new AppError("Invalid credentials", 401);
     }
 
     if (user.isBlocked) {
-      throw new AppError(`Account blocked: ${user.blockedReason || "Contact support"}`, 403);
+      throw new AppError(`Account blocked: ${user.blockedReason}`, 403);
     }
 
+    /** 2FA LOGIN FLOW */
     if (user.twoFactorEnabled) {
       const tempToken = JWTService.generateEmailVerificationToken();
-      await redisService.store2FAToken(user._id.toString(), tempToken);
+      await redisService.store2FAToken(user.id, tempToken);
 
       return {
-        user: { _id: user._id.toString(), email: user.email },
+        user: { _id: user.id, email: user.email },
         requires2FA: true,
         tempToken,
-        accessToken: "",
-        refreshToken: "",
       };
     }
 
+    /** NORMAL LOGIN */
     const tokens = JWTService.generateTokenPair({
-      userId: user._id.toString(),
+      userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(user._id.toString(), tokens.refreshToken, deviceInfo);
+    await redisService.storeRefreshToken(user.id, tokens.refreshToken, deviceInfo);
 
     return {
-      user: {
-        _id: user._id.toString(),
-        fullName: user.fullName,
-        email: user.email,
-        plan: user.plan,
-        planType: user.planType,
-        planActive: user.planActive,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        authProvider: user.authProvider,
-        credits: user.credits,
-        creditsUsed: user.creditsUsed,
-        nextCreditReset: user.nextCreditReset,
-        isActive: user.isActive,
-        isBlocked: user.isBlocked,
-        twoFactorEnabled: user.twoFactorEnabled,
-        subscriptionStatus: user.subscriptionStatus,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
+      user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
   }
 
+  /**
+   * -------------------------------
+   * VERIFY 2FA LOGIN
+   * -------------------------------
+   */
   static async verify2FA(
     tempToken: string,
     totpCode: string,
-    isBackupCode: boolean = false,
+    isBackup: boolean,
     superKey?: string
-  ): Promise<any> {
+  ) {
     const userId = await redisService.getUserIdFromTempToken(tempToken);
-    if (!userId) {
-      throw new AppError("Session expired. Please login again.", 401);
-    }
+    if (!userId) throw new AppError("Session expired. Login again.", 401);
 
     const user = await User.findById(userId).select("+twoFactorSecret +superKey");
     if (!user) throw new AppError("Invalid session", 401);
 
-    const isValidTemp = await redisService.verify2FAToken(userId, tempToken);
-    if (!isValidTemp) throw new AppError("Session expired", 401);
-
-    if (user.role === UserRole.ADMIN && (!superKey || superKey !== user.superKey)) {
+    if (user.role === UserRole.ADMIN && superKey !== user.superKey) {
       throw new AppError("Invalid super key", 401);
     }
 
-    const verified = await TwoFactorService.verify2FALogin(userId, totpCode, isBackupCode);
+    /** Verify TOTP or Backup Code */
+    await redisService.verify2FAToken(userId, tempToken);
+
+    const verified = await TwoFactorService.verify2FALogin(
+      userId,
+      totpCode,
+      isBackup
+    );
+
     if (!verified) throw new AppError("Invalid 2FA code", 401);
 
     await redisService.delete2FAToken(userId);
 
+    /** NEW TOKEN PAIR */
     const tokens = JWTService.generateTokenPair({
-      userId: user._id.toString(),
+      userId,
       email: user.email,
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(user._id.toString(), tokens.refreshToken);
+    await redisService.storeRefreshToken(userId, tokens.refreshToken);
 
     return {
-      user: {
-        _id: user._id.toString(),
-        fullName: user.fullName,
-        email: user.email,
-        plan: user.plan,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        authProvider: user.authProvider,
-        credits: user.credits,
-        creditsUsed: user.creditsUsed,
-        isActive: user.isActive,
-        isBlocked: user.isBlocked,
-        twoFactorEnabled: user.twoFactorEnabled,
-        subscriptionStatus: user.subscriptionStatus,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
+      user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
   }
 
-  static async resendVerificationEmail(email: string): Promise<void> {
-    const user = await User.findOne({ email });
-    if (!user) throw new AppError("User not found", 404);
-    if (user.isEmailVerified) throw new AppError("Email already verified", 400);
-
-    const verificationToken = JWTService.generateEmailVerificationToken();
-    user.emailVerificationToken = JWTService.hashToken(verificationToken);
-    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await user.save({ validateModifiedOnly: true });
-
-    console.log(`📧 Email verification link (development): ${verificationToken}`);
-  }
-
+  /**
+   * -------------------------------
+   * REFRESH TOKEN
+   * -------------------------------
+   */
   static async refreshAccessToken(refreshToken: string): Promise<string> {
     const decoded = JWTService.verifyRefreshToken(refreshToken);
-    const exists = await redisService.verifyRefreshToken(decoded.userId, refreshToken);
+
+    const exists = await redisService.verifyRefreshToken(
+      decoded.userId,
+      refreshToken
+    );
+
     if (!exists) throw new AppError("Invalid refresh token", 401);
 
     const user = await User.findById(decoded.userId);
-    if (!user || !user.isActive) throw new AppError("User not found", 401);
-
-    const iat = Math.floor(Date.now() / 1000);
-    if (user.changedPasswordAfter(iat)) {
-      throw new AppError("Password changed. Please login again.", 401);
-    }
+    if (!user?.isActive) throw new AppError("User not found", 401);
 
     return JWTService.generateAccessToken({
-      userId: user._id.toString(),
+      userId: user.id,
       email: user.email,
       role: user.role,
     });
   }
 
-  static async logout(userId: string, refreshToken: string): Promise<void> {
+  /**
+   * -------------------------------
+   * LOGOUT
+   * -------------------------------
+   */
+  static async logout(userId: string, refreshToken: string) {
     await redisService.deleteRefreshToken(userId, refreshToken);
   }
 
-  static async logoutAll(userId: string): Promise<void> {
+  static async logoutAll(userId: string) {
     await redisService.logoutAllDevices(userId);
-  }
-
-  static async setup2FA(userId: string): Promise<any> {
-    return TwoFactorService.setup2FA(userId);
-  }
-
-  static async enable2FA(userId: string, totpCode: string): Promise<boolean> {
-    return TwoFactorService.enable2FA(userId, totpCode);
-  }
-
-  static async disable2FA(userId: string, password: string, totpCode?: string): Promise<boolean> {
-    return TwoFactorService.disable2FA(userId, password, totpCode);
-  }
-
-  static async regenerateBackupCodes(userId: string, password: string): Promise<string[]> {
-    return TwoFactorService.regenerateBackupCodes(userId, password);
-  }
-
-  static async get2FAStatus(userId: string): Promise<any> {
-    return TwoFactorService.get2FAStatus(userId);
-  }
-
-  static async forgotPassword(email: string): Promise<boolean> {
-    const user = await User.findOne({ email });
-    if (!user) throw new AppError("Email not found", 404);
-
-    const resetToken = JWTService.generatePasswordResetToken();
-    user.passwordResetToken = JWTService.hashToken(resetToken);
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-    await user.save({ validateModifiedOnly: true });
-
-    console.log(`🔐 Password reset link (development): ${resetToken}`);
-    return true;
-  }
-
-  static async resetPassword(resetToken: string, newPassword: string): Promise<boolean> {
-    const hashedToken = JWTService.hashToken(resetToken);
-    const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() },
-    });
-
-    if (!user) throw new AppError("Invalid or expired token", 400);
-
-    user.password = newPassword;
-    user.passwordChangedAt = new Date(Date.now() - 1000);
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save({ validateModifiedOnly: true });
-
-    await redisService.logoutAllDevices(user._id.toString());
-
-    return true;
   }
 }
 
