@@ -22,7 +22,6 @@ const guestUserSchema = new Schema<IGuestUser>(
     lastResetDate: {
       type: Date,
       default: Date.now,
-      index: true,
     },
     requestCount: {
       type: Number,
