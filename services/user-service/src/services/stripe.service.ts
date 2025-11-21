@@ -170,7 +170,6 @@ class StripeService {
 
     await user.save();
 
-    console.log(`💳 Credits added: ${user.email} +${credits} (Total: ${user.credits})`);
   }
 
   static async deactivatePlan(userId: string): Promise<void> {
