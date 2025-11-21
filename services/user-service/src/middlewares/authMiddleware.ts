@@ -132,16 +132,16 @@ class AuthMiddleware {
     next();
   });
 
-  static requireAnyAuth = (req: Request, _res: Response, next: NextFunction) => {
-    if (req.userType === "anonymous") {
-      throw new AppError("Authentication required", 401);
+  static requireRegisteredUser = (req: Request, _res: Response, next: NextFunction) => {
+    if (req.userType !== "registered" || !req.user) {
+      throw new AppError("Registered account required", 401);
     }
     next();
   };
 
-  static requireRegisteredUser = (req: Request, _res: Response, next: NextFunction) => {
-    if (req.userType !== "registered" || !req.user) {
-      throw new AppError("Registered account required", 401);
+  static requireAnyAuth = (req: Request, _res: Response, next: NextFunction) => {
+    if (req.userType === "anonymous") {
+      throw new AppError("Authentication required", 401);
     }
     next();
   };
