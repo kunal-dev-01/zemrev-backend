@@ -7,3 +7,4 @@ export {
 } from "./errorHandler.js";
 export type { ErrorResponse } from "./errorHandler.js";
 export { default as JWTService } from "./jwt.js";
+export { default as EmailProducer } from "./email.service.js";

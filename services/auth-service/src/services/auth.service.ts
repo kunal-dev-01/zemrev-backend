@@ -7,17 +7,15 @@ import {
   SignupData,
   getPlanDetails,
 } from "@zemrev/models";
-
-import { AppError, JWTService } from "@zemrev/utils";
+import env from "@/config/env.config.js";
+import { AppError, JWTService,EmailProducer } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
 import TwoFactorService from "./twoFactor.service.js";
 
 class AuthService {
-  /**
-   * -------------------------------
+  /** -------------------------------
    * USER SIGNUP
-   * -------------------------------
-   */
+   * -------------------------------*/
   static async signup(
     data: SignupData & { fingerprint?: string }
   ): Promise<any> {
@@ -98,7 +96,14 @@ class AuthService {
     user.emailVerificationExpires = new Date(Date.now() + 86400000);
     await user.save();
 
-    console.log(`Email verification code: ${token}`);
+    const verificationUrl = `${env.CLIENT_URL}/auth/verify-email?token=${token}`;
+
+    await EmailProducer.sendVerificationEmail(
+      email,
+      user.fullName,
+      verificationUrl,
+      "Zemrev"
+    );
 
     /** LOGIN TOKENS */
     const tokens = JWTService.generateTokenPair({
@@ -117,11 +122,9 @@ class AuthService {
     };
   }
 
-  /**
-   * -------------------------------
+  /**-------------------------------
    * LOGIN
-   * -------------------------------
-   */
+   * -------------------------------*/
   static async login(
     email: string,
     password: string,
@@ -167,11 +170,9 @@ class AuthService {
     };
   }
 
-  /**
-   * -------------------------------
+  /**-------------------------------
    * VERIFY 2FA LOGIN
-   * -------------------------------
-   */
+   * -------------------------------*/
   static async verify2FA(
     tempToken: string,
     totpCode: string,
@@ -217,11 +218,9 @@ class AuthService {
     };
   }
 
-  /**
-   * -------------------------------
+  /**-------------------------------
    * REFRESH TOKEN
-   * -------------------------------
-   */
+   * -------------------------------*/
   static async refreshAccessToken(refreshToken: string): Promise<string> {
     const decoded = JWTService.verifyRefreshToken(refreshToken);
 
@@ -242,11 +241,9 @@ class AuthService {
     });
   }
 
-  /**
-   * -------------------------------
+  /**-------------------------------
    * LOGOUT
-   * -------------------------------
-   */
+   * -------------------------------*/
   static async logout(userId: string, refreshToken: string) {
     await redisService.deleteRefreshToken(userId, refreshToken);
   }
