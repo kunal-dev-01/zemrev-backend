@@ -76,8 +76,7 @@ class CreditService {
 
   static async deductUserCredits(
     userId: string,
-    creditsNeeded: number,
-    fingerprint?: string
+    creditsNeeded: number
   ): Promise<void> {
     const user = await User.findById(userId);
     if (!user) throw new AppError("User not found", 404);
@@ -109,10 +108,6 @@ class CreditService {
 
     user.creditsUsed += creditsNeeded;
     await user.save();
-
-    console.log(
-      `💳 Credits used: ${user.email} | -${creditsNeeded} (${user.creditsUsed}/${user.credits})`
-    );
   }
 
   static async deductGuestCredits(
