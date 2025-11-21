@@ -11,9 +11,6 @@ const envSchema = joi
     NODE_ENV: joi.string().valid('development', 'production', 'test').default('development'),
     CORS_ORIGIN: joi.string().uri().required(),
     MONGODB_URL: joi.string().uri().required(),
-    GOOGLE_CLIENT_ID: joi.string().required(),
-    GOOGLE_CLIENT_SECRET: joi.string().required(),
-    GOOGLE_REDIRECT_URI: joi.string().uri().required(),
     JWT_ACCESS_SECRET: joi.string().required(),
     JWT_REFRESH_SECRET: joi.string().required(),
     REDIS_USERNAME: joi.string(),
@@ -44,9 +41,6 @@ export default value as {
   NODE_ENV: 'development' | 'production' | 'test';
   CORS_ORIGIN: string;
   MONGODB_URL: string;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  GOOGLE_REDIRECT_URI: string;
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
   REDIS_USERNAME: string;
