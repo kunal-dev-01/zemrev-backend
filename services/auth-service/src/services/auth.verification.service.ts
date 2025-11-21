@@ -57,7 +57,15 @@ class AuthVerificationService {
     user.passwordResetExpires = new Date(Date.now() + 3600000);
 
     await user.save({ validateModifiedOnly: true });
-    console.log("Password reset code:", token);
+    
+    const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
+    
+    await EmailProducer.sendPasswordResetEmail(
+      user.email,
+      user.fullName,
+      resetUrl,
+      "Zemrev"
+    );
 
     return true;
   }
@@ -79,15 +87,6 @@ class AuthVerificationService {
     user.passwordResetExpires = undefined;
 
     await user.save({ validateModifiedOnly: true });
-
-    const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
-    
-    await EmailProducer.sendPasswordResetEmail(
-      user.email,
-      user.fullName,
-      resetUrl,
-      "Zemrev"
-    );
 
     await redisService.logoutAllDevices(user.id);
     return true;
