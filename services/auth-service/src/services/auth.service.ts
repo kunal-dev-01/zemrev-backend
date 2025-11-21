@@ -1,7 +1,8 @@
 import { User, GuestUser, PlanType, UserRole, SubscriptionStatus, SignupData } from "@zemrev/models";
 import { getPlanDetails } from "@zemrev/config";
-import { AppError, jwtService } from "@zemrev/utils";
-import { redisService } from "@zemrev/redis";
+import { AppError } from "@zemrev/utils";
+import redisService from "@/redis/redis.js";
+import jwtService from "@/utils/jwt.js";
 import TwoFactorService from "./twoFactor.service.js";
 
 class AuthService {

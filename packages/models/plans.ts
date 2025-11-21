@@ -1,4 +1,4 @@
-import { PlanType, PlanDetails } from "@zemrev/models";
+import { PlanType, PlanDetails } from "./user.interface.js";
 
 export const PLANS: Record<PlanType, PlanDetails> = {
   [PlanType.BASIC]: {
