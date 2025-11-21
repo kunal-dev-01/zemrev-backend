@@ -21,7 +21,7 @@ class CreditMiddleware {
       }
 
       if (req.userType === "registered" && req.user) {
-        await CreditService.deductUserCredits(req.user._id, creditsNeeded, fingerprint);
+        await CreditService.deductUserCredits(req.user._id, creditsNeeded);
 
         const creditInfo = await CreditService.getUserCredits(req.user._id);
         req.creditInfo = {
