@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { User, UserRole } from "@zemrev/models";
-import { jwtService, AppError, catchAsync } from "@zemrev/utils";
+import { AppError, catchAsync, JWTService } from "@zemrev/utils";
 
 class AuthMiddleware {
   static identifyUser = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
@@ -8,7 +8,7 @@ class AuthMiddleware {
 
     if (token) {
       try {
-        const decoded = jwtService.verifyAccessToken(token);
+        const decoded = JWTService.verifyAccessToken(token);
         const user = await User.findById(decoded.userId);
 
         if (user && user.isActive && !user.isBlocked) {

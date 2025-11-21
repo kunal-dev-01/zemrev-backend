@@ -1,8 +1,7 @@
 import { User, GuestUser, PlanType, UserRole, SubscriptionStatus, SignupData } from "@zemrev/models";
-import { getPlanDetails } from "@zemrev/config";
-import { AppError } from "@zemrev/utils";
-import redisService from "@/redis/redis.js";
-import jwtService from "@/utils/jwt.js";
+import { AppError, JWTService } from "@zemrev/utils";
+import { redisService } from "@zemrev/redis";
+import { getPlanDetails } from "@zemrev/models";
 import TwoFactorService from "./twoFactor.service.js";
 
 class AuthService {
@@ -77,15 +76,15 @@ class AuthService {
       );
     }
 
-    const verificationToken = jwtService.generateEmailVerificationToken();
-    user.emailVerificationToken = jwtService.hashToken(verificationToken);
+    const verificationToken = JWTService.generateEmailVerificationToken();
+    user.emailVerificationToken = JWTService.hashToken(verificationToken);
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
     // TODO: Send email via queue
     console.log(`📧 Email verification link (development): ${verificationToken}`);
 
-    const tokens = jwtService.generateTokenPair({
+    const tokens = JWTService.generateTokenPair({
       userId: user._id.toString(),
       email: user.email,
       role: user.role,
@@ -121,7 +120,7 @@ class AuthService {
   }
 
   static async verifyEmail(verificationToken: string): Promise<boolean> {
-    const hashedToken = jwtService.hashToken(verificationToken);
+    const hashedToken = JWTService.hashToken(verificationToken);
     const user = await User.findOne({
       emailVerificationToken: hashedToken,
       emailVerificationExpires: { $gt: Date.now() },
@@ -149,7 +148,7 @@ class AuthService {
     }
 
     if (user.twoFactorEnabled) {
-      const tempToken = jwtService.generateEmailVerificationToken();
+      const tempToken = JWTService.generateEmailVerificationToken();
       await redisService.store2FAToken(user._id.toString(), tempToken);
 
       return {
@@ -161,7 +160,7 @@ class AuthService {
       };
     }
 
-    const tokens = jwtService.generateTokenPair({
+    const tokens = JWTService.generateTokenPair({
       userId: user._id.toString(),
       email: user.email,
       role: user.role,
@@ -221,7 +220,7 @@ class AuthService {
 
     await redisService.delete2FAToken(userId);
 
-    const tokens = jwtService.generateTokenPair({
+    const tokens = JWTService.generateTokenPair({
       userId: user._id.toString(),
       email: user.email,
       role: user.role,
@@ -257,8 +256,8 @@ class AuthService {
     if (!user) throw new AppError("User not found", 404);
     if (user.isEmailVerified) throw new AppError("Email already verified", 400);
 
-    const verificationToken = jwtService.generateEmailVerificationToken();
-    user.emailVerificationToken = jwtService.hashToken(verificationToken);
+    const verificationToken = JWTService.generateEmailVerificationToken();
+    user.emailVerificationToken = JWTService.hashToken(verificationToken);
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save({ validateModifiedOnly: true });
 
@@ -266,7 +265,7 @@ class AuthService {
   }
 
   static async refreshAccessToken(refreshToken: string): Promise<string> {
-    const decoded = jwtService.verifyRefreshToken(refreshToken);
+    const decoded = JWTService.verifyRefreshToken(refreshToken);
     const exists = await redisService.verifyRefreshToken(decoded.userId, refreshToken);
     if (!exists) throw new AppError("Invalid refresh token", 401);
 
@@ -278,7 +277,7 @@ class AuthService {
       throw new AppError("Password changed. Please login again.", 401);
     }
 
-    return jwtService.generateAccessToken({
+    return JWTService.generateAccessToken({
       userId: user._id.toString(),
       email: user.email,
       role: user.role,
@@ -317,8 +316,8 @@ class AuthService {
     const user = await User.findOne({ email });
     if (!user) throw new AppError("Email not found", 404);
 
-    const resetToken = jwtService.generatePasswordResetToken();
-    user.passwordResetToken = jwtService.hashToken(resetToken);
+    const resetToken = JWTService.generatePasswordResetToken();
+    user.passwordResetToken = JWTService.hashToken(resetToken);
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save({ validateModifiedOnly: true });
 
@@ -327,7 +326,7 @@ class AuthService {
   }
 
   static async resetPassword(resetToken: string, newPassword: string): Promise<boolean> {
-    const hashedToken = jwtService.hashToken(resetToken);
+    const hashedToken = JWTService.hashToken(resetToken);
     const user = await User.findOne({
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: Date.now() },

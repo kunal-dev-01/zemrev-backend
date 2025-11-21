@@ -1,5 +1,4 @@
-import { User, Payment, PaymentStatus, PaymentMethod, PlanType } from "@zemrev/models";
-import { AppError } from "@zemrev/utils";
+import {Payment, PaymentStatus, PaymentMethod, PlanType } from "@zemrev/models";
 
 class PaymentService {
   static async getPaymentHistory(userId: string, page: number, limit: number): Promise<any> {

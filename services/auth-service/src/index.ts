@@ -1,7 +1,7 @@
 import app from "./app.js";
 import { connectDB } from "@zemrev/db";
 import { handleUnhandledRejection, handleUncaughtException } from "@zemrev/utils";
-import { env } from "./app.js";
+import env from "@/config/env.config.js";
 
 handleUncaughtException();
 

@@ -6,3 +6,4 @@ export {
   handleUnhandledRejection,
 } from "./errorHandler.js";
 export type { ErrorResponse } from "./errorHandler.js";
+export { default as JWTService } from "./jwt.js";

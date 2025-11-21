@@ -2,9 +2,8 @@ import { OAuth2Client } from "google-auth-library";
 import axios from "axios";
 import env from '@/config/env.config.js';
 import { User } from "@zemrev/models";
-import { AppError } from '@zemrev/utils';
-import redisService from "@/redis/redis.js";
-import jwtService from "@/utils/jwt.js";
+import { AppError, JWTService } from "@zemrev/utils";
+import { redisService } from "@zemrev/redis";
 
 const GOOGLE_AUTH_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
@@ -62,7 +61,7 @@ class GoogleAuthService {
         avatar: googleUser.picture as string,
       });
 
-      const jwtTokens = jwtService.generateTokenPair({
+      const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
         role: user.role,

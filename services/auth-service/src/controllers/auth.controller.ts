@@ -3,7 +3,7 @@ import AuthService from "../services/auth.service.js";
 import { PlanType } from "@zemrev/models";
 import googleService from "../services/googleAuth.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
-import { env } from "../app.js";
+import env from "@/config/env.config.js";
 
 
 class AuthController {

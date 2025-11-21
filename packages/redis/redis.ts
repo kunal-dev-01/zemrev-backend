@@ -1,7 +1,6 @@
 // src/modules/sessionService/redis.service.ts
 
 import { createClient, RedisClientType } from "redis";
-import env from '@/config/env.config.js';
 
 class RedisService {
   private client: RedisClientType;
@@ -12,11 +11,11 @@ class RedisService {
 
   constructor() {
     this.client = createClient({
-      username: env.REDIS_USERNAME,
-      password: env.REDIS_PASSWORD,
+      username: process.env.REDIS_USERNAME,
+      password: process.env.REDIS_PASSWORD,
       socket: {
-        host: env.REDIS_HOST,
-        port: env.REDIS_PORT as unknown as number,
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT as unknown as number,
       },
     });
 

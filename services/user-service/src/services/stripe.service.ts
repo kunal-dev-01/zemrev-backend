@@ -1,11 +1,10 @@
 import Stripe from "stripe";
 import { User, Subscription, SubscriptionStatus, PlanType } from "@zemrev/models";
-import { getPlanDetails, STRIPE_PRICE_IDS } from "@zemrev/config";
+import { getPlanDetails, STRIPE_PRICE_IDS } from "@zemrev/models";
 import { AppError } from "@zemrev/utils";
 import PaymentService from "./payment.service.js";
-import { getEnv } from "@zemrev/config";
+import env from "@/config/env.config.js";
 
-const env = getEnv();
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-06-20" as any,
 });

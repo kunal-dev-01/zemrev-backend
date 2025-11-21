@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { User, GuestUser, UserRole } from "@zemrev/models";
-import { jwtService, AppError, catchAsync } from "@zemrev/utils";
+import { JWTService, AppError, catchAsync } from "@zemrev/utils";
 import CreditService from "../services/credit.service.js";
 
 class AuthMiddleware {
@@ -31,7 +31,7 @@ class AuthMiddleware {
 
     if (token) {
       try {
-        const decoded = jwtService.verifyAccessToken(token);
+        const decoded = JWTService.verifyAccessToken(token);
         const user = await User.findById(decoded.userId);
 
         if (user && user.isActive && !user.isBlocked) {

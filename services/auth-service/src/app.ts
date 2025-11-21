@@ -4,13 +4,11 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
-import { corsOptions } from "@zemrev/config";
+import { corsOptions } from "@/config/cors.config.js";
 import { globalErrorHandler } from "@zemrev/utils";
-import { validateEnv } from "@zemrev/config";
+import env from "@/config/env.config.js";
 
 import authRoutes from "./routes/auth.routes.js";
-
-export const env = validateEnv(process.env);
 const app = express();
 
 app.set("trust proxy", 1);

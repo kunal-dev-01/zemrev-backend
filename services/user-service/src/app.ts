@@ -3,15 +3,14 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
-import { corsOptions } from "@zemrev/config";
+import { corsOptions } from "@/config/cors.config.js";
 import { globalErrorHandler, AppError } from "@zemrev/utils";
-import { getEnv } from "@zemrev/config";
+import env from "@/config/env.config.js"
 
 import userRoutes from "./routes/user.routes.js";
 import creditRoutes from "./routes/credit.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 
-const env = getEnv();
 const app = express();
 
 app.set("trust proxy", 1);

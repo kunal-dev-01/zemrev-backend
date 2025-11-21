@@ -27,7 +27,6 @@
     "@zemrev/models": "workspace:*",
     "@zemrev/db": "workspace:*",
     "@zemrev/utils": "workspace:*",
-    "@zemrev/config": "workspace:*",
     "@zemrev/types": "workspace:*"
   },
   "devDependencies": {
