@@ -1,75 +1,134 @@
+// src/modules/userService/controllers/user.controller.ts
+
 import { Request, Response } from "express";
-import UserService from "../services/user.service.js";
-import { catchAsync, AppError } from "@zemrev/utils";
+import { AppError, catchAsync } from "@zemrev/utils";
+import { UserService } from "@/services/user.service.js";
 
 class UserController {
-  static getProfile = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?._id;
+  static getProfile = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new AppError("User not authenticated", 401);
+      }
 
-    if (!userId) {
-      throw new AppError("Authentication required", 401);
+      const userProfile = await UserService.getUserById(userId.toString());
+      res.status(200).json({
+        status: "success",
+        data: {
+          user: userProfile,
+        },
+      });
     }
+  );
 
-    const user = await UserService.getProfile(userId);
+  static getUserById = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
 
-    res.status(200).json({
-      status: "success",
-      data: { user },
-    });
-  });
+      const user = await UserService.getUserById(id);
 
-  static updateProfile = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?._id;
-    const { fullName, phoneNumber, address } = req.body;
-
-    if (!userId) {
-      throw new AppError("Authentication required", 401);
+      res.status(200).json({
+        status: "success",
+        data: {
+          user,
+        },
+      });
     }
+  );
 
-    const user = await UserService.updateProfile(userId, {
-      fullName,
-      phoneNumber,
-      address,
-    });
+  static updatePassword = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const userId = req.user?._id;
+      const { oldPassword, newPassword } = req.body;
 
-    res.status(200).json({
-      status: "success",
-      message: "Profile updated successfully",
-      data: { user },
-    });
-  });
+      if (!userId) {
+        throw new AppError("User not authenticated", 401);
+      }
 
-  static changePassword = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?._id;
-    const { currentPassword, newPassword } = req.body;
+      const updatedPassword = await UserService.updatePassword(
+        userId.toString(),
+        oldPassword,
+        newPassword
+      );
 
-    if (!userId || !currentPassword || !newPassword) {
-      throw new AppError("Please provide all required fields", 400);
+      if (updatedPassword) {
+        res.status(200).json({
+          status: "success",
+          message: "Password updated successfully",
+        });
+      }
     }
+  );
 
-    await UserService.changePassword(userId, currentPassword, newPassword);
+  static updatePhoneNumber = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const userId = req.user?._id;
+      const { phoneNumber } = req.body;
 
-    res.status(200).json({
-      status: "success",
-      message: "Password changed successfully",
-    });
-  });
+      if (!userId) {
+        throw new AppError("User not authenticated", 401);
+      }
 
-  static deletAccount = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?._id;
-    const { password } = req.body;
+      const updatedPhoneNumber = await UserService.updatePhoneNumber(
+        userId.toString(),
+        phoneNumber
+      );
 
-    if (!userId || !password) {
-      throw new AppError("Please provide password", 400);
+      res.status(200).json({
+        status: "success",
+        data: {
+          phoneNumber: updatedPhoneNumber,
+        },
+      });
     }
+  );
 
-    await UserService.deleteAccount(userId, password);
+  static updateAddress = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const userId = req.user?._id;
+      const { address } = req.body;
 
-    res.status(200).json({
-      status: "success",
-      message: "Account deleted successfully",
-    });
-  });
+      if (!userId) {
+        throw new AppError("User not authenticated", 401);
+      }
+
+      const updatedAddress = await UserService.updateAddress(
+        userId.toString(),
+        address
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          address: updatedAddress,
+        },
+      });
+    }
+  );
+
+  static updateFullName = catchAsync(
+    async (req: Request, res: Response): Promise<void> => {
+      const userId = req.user?._id;
+      const { fullName } = req.body;
+
+      if (!userId) {
+        throw new AppError("User not authenticated", 401);
+      }
+
+      const updatedFullName = await UserService.updateName(
+        userId.toString(),
+        fullName
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          fullName: updatedFullName,
+        },
+      });
+    }
+  );
 }
 
 export default UserController;

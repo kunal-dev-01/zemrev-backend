@@ -1,6 +1,6 @@
 import express, {type Router} from "express";
-import UserController from "../controllers/user.controller.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
+import UserController from "@/controllers/user.controller.js";
+import authMiddleware from "@/middlewares/authMiddleware.js";
 import rateLimit from "express-rate-limit";
 
 const router: Router = express.Router();
@@ -16,8 +16,16 @@ router.use(authMiddleware.identifyUser);
 router.use(authMiddleware.requireRegisteredUser);
 
 router.get("/profile", UserController.getProfile);
-router.put("/profile", UserController.updateProfile);
-router.post("/change-password", UserController.changePassword);
-router.delete("/account", UserController.deletAccount);
+
+router.patch("/update-password", UserController.updatePassword);
+
+router.patch("/update-phone-number", UserController.updatePhoneNumber);
+
+router.patch("/update-address", UserController.updateAddress);
+
+router.patch("/update-full-name", UserController.updateFullName);
+
+router.get("/get-user-by-id/:id", authMiddleware.requireAdmin, UserController.getUserById);
+
 
 export default router;
