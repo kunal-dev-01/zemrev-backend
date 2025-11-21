@@ -1,7 +1,5 @@
 import axios from "axios";
-import { getEnv } from "@zemrev/config";
-
-const env = getEnv();
+import env from '@/config/env.config.js';
 
 /**
  * INTERNAL SERVICE CALL - Credit Deduction

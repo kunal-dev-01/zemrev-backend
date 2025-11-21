@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express , { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -9,7 +9,7 @@ import { globalErrorHandler } from "@zemrev/utils";
 import env from "@/config/env.config.js";
 
 import authRoutes from "./routes/auth.routes.js";
-const app = express();
+const app: Express = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");

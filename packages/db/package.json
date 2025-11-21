@@ -11,8 +11,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "mongoose": "^8.0.0",
-    "@zemrev/config": "workspace:*"
+    "mongoose": "^8.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

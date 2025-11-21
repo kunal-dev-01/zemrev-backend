@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { User, UserRole } from "@zemrev/models";
 import { AppError, catchAsync, JWTService } from "@zemrev/utils";
+import "@zemrev/types"
 
 class AuthMiddleware {
   static identifyUser = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {

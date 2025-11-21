@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import CreditService from "../services/credit.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
+import "@zemrev/types";
 
 class CreditController {
   static getStatus = catchAsync(async (req: Request, res: Response): Promise<void> => {

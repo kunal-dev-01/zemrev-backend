@@ -1,9 +1,9 @@
-import express from "express";
+import express , {type Router} from "express";
 import CreditController from "../controllers/credit.controller.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import rateLimit from "express-rate-limit";
 
-const router = express.Router();
+const router : Router = express.Router();
 
 const limiter = rateLimit({
   windowMs: 60 * 1000,

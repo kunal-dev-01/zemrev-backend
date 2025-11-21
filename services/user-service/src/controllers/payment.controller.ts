@@ -4,10 +4,9 @@ import StripeService from "../services/stripe.service.js";
 import { Payment } from "@zemrev/models";
 import { PlanType } from "@zemrev/models";
 import { catchAsync, AppError } from "@zemrev/utils";
-import { getEnv } from "@zemrev/config";
 import { User } from "@zemrev/models";
+import env from "@/config/env.config.js";
 
-const env = getEnv();
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-06-20" as any,
 });
