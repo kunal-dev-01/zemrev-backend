@@ -10,7 +10,7 @@ import {
   GoogleProfile,
   planDetailsSchema,
 } from "./user.interface.js";
-import { getPlanDetails } from "@zemrev/config";
+import { getPlanDetails } from "./plans.js";
 
 const userSchema = new Schema<IUser, IUserModel>(
   {
