@@ -1,6 +1,8 @@
 import { User } from "@zemrev/models";
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
+import env from "@/config/env.config.js";
+import {EmailProducer} from "@zemrev/utils";
 
 class AuthVerificationService {
   /** VERIFY EMAIL */
@@ -18,7 +20,7 @@ class AuthVerificationService {
     user.emailVerificationExpires = undefined;
     user.isEmailVerified = true;
 
-    await user.save({ validateModifiedOnly: true });
+    await user.save({ validateModifiedOnly: true });    
     return true;
   }
 
@@ -34,7 +36,14 @@ class AuthVerificationService {
     user.emailVerificationExpires = new Date(Date.now() + 86400000);
 
     await user.save({ validateModifiedOnly: true });
-    console.log("Verification code:", token);
+    const verificationUrl = `${env.CLIENT_URL}/auth/verify-email?token=${token}`;
+
+    await EmailProducer.sendVerificationEmail(
+      email,
+      user.fullName,
+      verificationUrl,
+      "Zemrev"
+    );    
   }
 
   /** FORGOT PASSWORD */
@@ -70,6 +79,15 @@ class AuthVerificationService {
     user.passwordResetExpires = undefined;
 
     await user.save({ validateModifiedOnly: true });
+
+    const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
+    
+    await EmailProducer.sendPasswordResetEmail(
+      user.email,
+      user.fullName,
+      resetUrl,
+      "Zemrev"
+    );
 
     await redisService.logoutAllDevices(user.id);
     return true;
