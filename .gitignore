@@ -1,0 +1,88 @@
+# -----------------------------
+# Node Modules
+# -----------------------------
+node_modules/
+.pnpm-store/
+
+# -----------------------------
+# Logs
+# -----------------------------
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# -----------------------------
+# Runtime data
+# -----------------------------
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------------
+# Environment Variables
+# -----------------------------
+.env
+.env.*
+!.env.example
+
+# -----------------------------
+# TypeScript Build Outputs
+# -----------------------------
+dist/
+build/
+tsconfig.tsbuildinfo
+
+# -----------------------------
+# Optional npm/pnpm cache
+# -----------------------------
+.npm/
+.pnp.*
+
+# -----------------------------
+# IDE / Editor Directories
+# -----------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# -----------------------------
+# OS Generated Files
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# AWS Local Credentials
+# -----------------------------
+.aws/
+
+# -----------------------------
+# Temporary Upload Folders
+# -----------------------------
+uploads/
+temp/
+tmp/
+
+# -----------------------------
+# Test Coverage
+# -----------------------------
+coverage/
+
+# -----------------------------
+# Misc
+# -----------------------------
+*.tar.gz
+*.tgz
+
+# -----------------------------
+# Docker
+# -----------------------------
+docker-data/

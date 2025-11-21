@@ -1,0 +1,22 @@
+{
+  "name": "zemrev-backend",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Zemrev Microservices Backend",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,js,json}\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.3"
+  }
+}
