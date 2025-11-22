@@ -1,81 +1,44 @@
 import Stripe from "stripe";
-import { User, Subscription, SubscriptionStatus, PlanType } from "@zemrev/models";
-import { getPlanDetails, STRIPE_PRICE_IDS } from "@zemrev/models";
+import { User, CREDIT_PRICING } from "@zemrev/models";
 import { AppError } from "@zemrev/utils";
 import PaymentService from "./payment.service.js";
 import env from "@/config/env.config.js";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-06-20" as any,
-});
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as any });
 
-class StripeService {
-  static async createCheckoutSession(
-    userId: string,
-    planType: PlanType,
-    successUrl: string,
-    cancelUrl: string
-  ): Promise<string> {
-    if (planType === PlanType.CUSTOM) {
-      throw new AppError("Use /buy-credits for CUSTOM plan", 400);
-    }
-
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
-
-    let customerId = user.stripeCustomerId;
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.fullName,
-        metadata: { userId: user._id.toString() },
-      });
-
-      customerId = customer.id;
-      user.stripeCustomerId = customerId;
-      await user.save();
-    }
-
-    const priceId = STRIPE_PRICE_IDS[planType];
-    if (!priceId) throw new AppError("Plan not configured in Stripe", 400);
-
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: { userId: user._id.toString(), planType },
-    });
-
-    return session.url!;
+export default class StripeService {
+  // ----------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------
+  private static priceInCents(credits: number): number {
+    const tier = CREDIT_PRICING.TIERS.find((t) => credits >= t.min && credits <= t.max);
+    const unit = tier?.pricePerCredit ?? CREDIT_PRICING.PRICE_PER_CREDIT;
+    return Math.round(credits * unit * 100); // ¢
   }
 
-  static async buyCredits(
+  // ----------------------------------------------------------
+  // One-time checkout
+  // ----------------------------------------------------------
+  static async checkout(
     userId: string,
     credits: number,
     successUrl: string,
     cancelUrl: string
   ): Promise<string> {
-    if (credits < 1000) {
-      throw new AppError("Minimum 1000 credits required", 400);
-    }
+    if (credits < CREDIT_PRICING.MINIMUM_PURCHASE)
+      throw new AppError(`Min purchase: ${CREDIT_PRICING.MINIMUM_PURCHASE} credits`, 400);
 
     const user = await User.findById(userId);
     if (!user) throw new AppError("User not found", 404);
 
-    const priceInCents = Math.round(credits * 0.5);
-
+    // Ensure Stripe customer
     let customerId = user.stripeCustomerId;
-
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.fullName,
         metadata: { userId: user._id.toString() },
       });
-
       customerId = customer.id;
       user.stripeCustomerId = customerId;
       await user.save();
@@ -89,178 +52,105 @@ class StripeService {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `${credits} Credits`,
-              description: "Prepaid credits for CUSTOM plan",
+              name: `${credits.toLocaleString()} Credits`,
+              description: "Top-up your Zemrev balance",
+              images: [`${env.CLIENT_URL}/logo.png`],
             },
-            unit_amount: priceInCents,
+            unit_amount: this.priceInCents(credits),
           },
           quantity: 1,
         },
       ],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: {
-        userId: user._id.toString(),
-        planType: "CUSTOM_CREDIT_PURCHASE",
-        credits: credits.toString(),
-      },
+      metadata: { userId: user._id.toString(), credits: credits.toString(), type: "credit" },
+      client_reference_id: `${userId}-${Date.now()}`, // idempotency
     });
 
+    console.log(`💳 session=${session.id} credits=${credits}`);
     return session.url!;
   }
 
-  static async activatePlan(
-    userId: string,
-    planType: PlanType,
-    subscriptionId: string,
-    customerId: string,
-    stripeSubscription: Stripe.Subscription
-  ): Promise<void> {
+  // ----------------------------------------------------------
+  // Grant credits (webhook)
+  // ----------------------------------------------------------
+  private static async grantCredits(userId: string, credits: number, sessionId: string) {
     const user = await User.findById(userId);
     if (!user) throw new AppError("User not found", 404);
 
-    const planDetails = getPlanDetails(planType);
-
-    const nextReset = new Date();
-    nextReset.setUTCHours(0, 0, 0, 0);
-    nextReset.setUTCDate(nextReset.getUTCDate() + 1);
-
-    user.planType = planType;
-    user.planActive = true;
-    user.plan = planDetails;
-    user.credits = planDetails.dailyCredits;
-    user.creditsUsed = 0;
-    user.nextCreditReset = nextReset;
-    user.stripeCustomerId = customerId;
-    user.subscriptionId = subscriptionId;
-    user.subscriptionStatus = SubscriptionStatus.ACTIVE;
-    user.planStartedAt = new Date();
-
-    await user.save();
-
-    await Subscription.create({
-      userId: user._id,
-      stripeSubscriptionId: subscriptionId,
-      stripeCustomerId: customerId,
-      planType,
-      status: stripeSubscription.status,
-      billingCycle: "monthly",
-      currentPeriodStart: new Date((stripeSubscription.current_period_start ?? 0) * 1000),
-      currentPeriodEnd: new Date((stripeSubscription.current_period_end ?? 0) * 1000),
-      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? false,
-    });
-
-    console.log(`✅ Plan activated: ${user.email} → ${planType}`);
-  }
-
-  static async addCredits(userId: string, credits: number): Promise<void> {
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
-
-    if (user.planType !== PlanType.CUSTOM) {
-      const customPlan = getPlanDetails(PlanType.CUSTOM);
-      user.planType = PlanType.CUSTOM;
-      user.plan = customPlan;
+    // Idempotency guard
+    if (await PaymentService.findBySession(sessionId)) {
+      console.log(`⚠️ already processed session=${sessionId}`);
+      return;
     }
 
     user.credits += credits;
-    user.planActive = true;
-    user.subscriptionStatus = SubscriptionStatus.ACTIVE;
-    user.planStartedAt = user.planStartedAt || new Date();
-
+    user.status = "active";
     await user.save();
 
+    console.log(`✅ ${user.email} +${credits} total=${user.credits}`);
   }
 
-  static async deactivatePlan(userId: string): Promise<void> {
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
+  // ----------------------------------------------------------
+  // Webhook handler
+  // ----------------------------------------------------------
+  static async webhook(evt: Stripe.Event): Promise<void> {
+    console.log(`🔔 ${evt.type}`);
 
-    user.planActive = false;
-    user.credits = 0;
-    user.creditsUsed = 0;
-    user.subscriptionStatus = SubscriptionStatus.CANCELED;
-    user.planExpiresAt = new Date();
+    try {
+      switch (evt.type) {
+        case "checkout.session.completed": {
+          const cs = evt.data.object as Stripe.Checkout.Session;
+          if (cs.mode !== "payment") return;
 
-    await user.save();
+          const uid = cs.metadata?.userId;
+          const credits = Number(cs.metadata?.credits || 0);
+          if (!uid || !credits || cs.payment_status !== "paid") return;
 
-    if (user.subscriptionId) {
-      await Subscription.findOneAndUpdate(
-        { stripeSubscriptionId: user.subscriptionId },
-        { status: "canceled", canceledAt: new Date() }
-      );
+          await this.grantCredits(uid, credits, cs.id);
+
+          await PaymentService.record(
+            uid,
+            cs.payment_intent as string,
+            cs.id,
+            (cs.amount_total ?? 0) / 100,
+            credits
+          );
+          break;
+        }
+
+        case "payment_intent.succeeded":
+          console.log(`✅ pi=${(evt.data.object as Stripe.PaymentIntent).id}`);
+          break;
+
+        case "payment_intent.payment_failed":
+          console.log(`❌ pi=${(evt.data.object as Stripe.PaymentIntent).id}`);
+          break;
+
+        case "charge.refunded":
+          console.log(`🔄 refund=${(evt.data.object as Stripe.Charge).id}`);
+          break;
+
+        default:
+          console.log(`⚠️ unhandled ${evt.type}`);
+      }
+    } catch (e) {
+      console.error(e);
+      throw e;
     }
-
-    console.log(`❌ Plan deactivated: ${user.email}`);
   }
 
-  static async cancelSubscription(userId: string): Promise<void> {
+  // ----------------------------------------------------------
+  // Customer portal
+  // ----------------------------------------------------------
+  static async portal(userId: string): Promise<string> {
     const user = await User.findById(userId);
-    if (!user || !user.subscriptionId)
-      throw new AppError("No active subscription", 404);
+    if (!user?.stripeCustomerId) throw new AppError("No billing account", 404);
 
-    await stripe.subscriptions.cancel(user.subscriptionId);
-    console.log(`🚫 Subscription canceled: ${user.email}`);
-  }
-
-  static async handleWebhook(event: Stripe.Event): Promise<void> {
-    console.log("🔔 Webhook:", event.type);
-
-    switch (event.type) {
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const customerId = invoice.customer as string;
-        const subscriptionId = invoice.subscription as string | undefined;
-        const paymentIntent = invoice.payment_intent!;
-
-        if (!subscriptionId) break;
-
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        const userId = subscription.metadata?.userId;
-        const planType = subscription.metadata?.planType as PlanType;
-
-        if (userId && planType) {
-          await this.activatePlan(userId, planType, subscriptionId, customerId, subscription);
-          await PaymentService.recordPayment(userId, paymentIntent as string, (invoice.amount_paid ?? 0) / 100, planType);
-        }
-        break;
-      }
-
-      case "checkout.session.completed": {
-        const session = event.data.object as any;
-
-        if (session.mode === "payment" && session.metadata?.planType === "CUSTOM_CREDIT_PURCHASE") {
-          const userId = session.metadata.userId;
-          const credits = parseInt(session.metadata.credits || "0");
-
-          if (userId && credits > 0) {
-            await this.addCredits(userId, credits);
-            await PaymentService.recordPayment(
-              userId,
-              session.payment_intent as string,
-              (session.amount_total ?? 0) / 100,
-              PlanType.CUSTOM,
-              { credits }
-            );
-          }
-        }
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
-
-        if (userId) {
-          await this.deactivatePlan(userId);
-        }
-        break;
-      }
-
-      default:
-        console.log("⚠️ Unhandled:", event.type);
-    }
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${env.CLIENT_URL}/dashboard`,
+    });
+    return session.url;
   }
 }
-
-export default StripeService;
