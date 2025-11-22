@@ -1,162 +1,139 @@
-import { User, GuestUser, PlanType } from "@zemrev/models";
+import { User, GuestUser, CREDIT_PRICING } from "@zemrev/models";
 import { AppError } from "@zemrev/utils";
+import crypto from "crypto";
 
-class CreditService {
-  static async getUserCredits(userId: string): Promise<any> {
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
-
-    if (user.planType !== PlanType.CUSTOM) {
-      await this.checkAndResetDailyCredits(user);
+export default class CreditService {
+  // ----------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------
+  private static async guest(fingerprint: string, ip: string) {
+    let g = await GuestUser.findOne({ fingerprint });
+    if (!g) {
+      g = await GuestUser.create({
+        guestId: crypto.randomBytes(16).toString("hex"),
+        fingerprint,
+        ipAddress: ip,
+        dailyCreditsUsed: 0,
+        lastResetAt: new Date(),
+      });
+      console.log(`🆕 guest=${g.guestId}`);
     }
-
-    return {
-      total: user.credits as number,
-      used: user.creditsUsed as number,
-      remaining: Math.max(0, user.credits - user.creditsUsed) as number,
-      resetDate: user.planType !== PlanType.CUSTOM ? user.nextCreditReset : undefined,
-      planType: user.planType,
-      planActive: user.planActive,
-    };
+    return g;
   }
 
-  static async getGuestCredits(fingerprint: string): Promise<any> {
-    const guest = await GuestUser.findOne({ fingerprint });
-    if (!guest) throw new AppError("Guest not found", 404);
-
-    await this.checkAndResetGuestCredits(guest);
-
-    return {
-      total: 15,
-      used: guest.creditsUsed,
-      remaining: Math.max(0, 15 - guest.creditsUsed),
-      resetDate: guest.lastResetDate,
-    };
-  }
-
-  static async checkAndResetDailyCredits(user: any): Promise<void> {
-    if (user.planType === PlanType.CUSTOM) return;
-
+  private static async resetIfNewDay(g: any) {
     const now = new Date();
-    const nextReset = new Date(user.nextCreditReset);
+    const last = new Date(g.lastResetAt);
+    const sameDay =
+      now.getUTCFullYear() === last.getUTCFullYear() &&
+      now.getUTCMonth() === last.getUTCMonth() &&
+      now.getUTCDate() === last.getUTCDate();
 
-    if (now >= nextReset) {
-      user.creditsUsed = 0;
-
-      const tomorrow = new Date();
-      tomorrow.setUTCHours(0, 0, 0, 0);
-      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-      user.nextCreditReset = tomorrow;
-
-      user.credits = user.plan.dailyCredits;
-
-      await user.save();
-      console.log(`✅ Daily credits reset: ${user.email} | Plan: ${user.planType}`);
+    if (!sameDay) {
+      g.dailyCreditsUsed = 0;
+      g.requestCount = 0;
+      g.lastResetAt = now;
+      await g.save();
+      console.log(`✅ reset guest=${g.guestId}`);
     }
   }
 
-  static async checkAndResetGuestCredits(guest: any): Promise<void> {
-    const now = new Date();
-    const lastReset = new Date(guest.lastResetDate);
-
-    const isSameDay = (
-      now.getUTCFullYear() === lastReset.getUTCFullYear() &&
-      now.getUTCMonth() === lastReset.getUTCMonth() &&
-      now.getUTCDate() === lastReset.getUTCDate()
-    );
-
-    if (!isSameDay) {
-      guest.creditsUsed = 0;
-      guest.requestCount = 0;
-      guest.lastResetDate = now;
-      await guest.save();
-      console.log(`✅ Guest credits reset: ${guest.fingerprint}`);
-    }
+  // ----------------------------------------------------------
+  // Queries
+  // ----------------------------------------------------------
+  static async userCredits(userId: string) {
+    const u = await User.findById(userId).lean();
+    if (!u) throw new AppError("User not found", 404);
+    return { total: u.credits, used: 0, remaining: u.credits, status: u.status };
   }
 
-  static async deductUserCredits(
-    userId: string,
-    creditsNeeded: number
-  ): Promise<void> {
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
-
-    if (!user.planActive) {
-      throw new AppError("Plan not active. Complete payment to continue.", 403);
-    }
-
-    if (user.planType !== PlanType.CUSTOM) {
-      await this.checkAndResetDailyCredits(user);
-    }
-
-    const remaining = user.credits - user.creditsUsed;
-
-    if (remaining < creditsNeeded) {
-      const resetInfo =
-        user.planType !== PlanType.CUSTOM
-          ? `Resets at ${new Date(user.nextCreditReset).toLocaleString(
-              "en-US",
-              { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }
-            )} UTC.`
-          : "Buy more credits to continue.";
-
-      throw new AppError(
-        `Insufficient credits. You have ${remaining}/${user.credits} remaining. ${resetInfo}`,
-        429
-      );
-    }
-
-    user.creditsUsed += creditsNeeded;
-    await user.save();
+  static async guestCredits(fp: string, ip: string) {
+    const g = await this.guest(fp, ip);
+    await this.resetIfNewDay(g);
+    const used = g.dailyCreditsUsed;
+    const rem = Math.max(0, CREDIT_PRICING.GUEST_DAILY_LIMIT - used);
+    return { total: CREDIT_PRICING.GUEST_DAILY_LIMIT, used, remaining: rem, resetAt: g.lastResetAt };
   }
 
-  static async deductGuestCredits(
-    fingerprint: string,
-    creditsNeeded: number
-  ): Promise<void> {
-    const guest = await GuestUser.findOne({ fingerprint });
-    if (!guest) throw new AppError("Guest not found", 404);
+  // ----------------------------------------------------------
+  // Deduction
+  // ----------------------------------------------------------
+  static async deductUser(userId: string, cost: number) {
+    const u = await User.findById(userId);
+    if (!u) throw new AppError("User not found", 404);
+    if (u.status !== "active") throw new AppError("Account inactive", 403);
+    if (u.credits < cost)
+      throw new AppError(`Need ${cost}, have ${u.credits}`, 429);
 
-    if (guest.isBlocked && guest.blockedUntil) {
-      const now = new Date();
-      if (now < guest.blockedUntil) {
-        const remainingMinutes = Math.ceil(
-          (guest.blockedUntil.getTime() - now.getTime()) / 60000
-        );
-        throw new AppError(
-          `Temporarily blocked. Try again in ${remainingMinutes} minutes.`,
-          403
-        );
-      }
-
-      guest.isBlocked = false;
-      guest.blockedUntil = undefined;
-      guest.requestCount = 0;
-    }
-
-    await this.checkAndResetGuestCredits(guest);
-
-    const remaining = 15 - guest.creditsUsed;
-
-    if (remaining < creditsNeeded) {
-      throw new AppError(
-        `Daily limit reached. Used ${guest.creditsUsed}/15. Resets at midnight UTC.`,
-        429
-      );
-    }
-
-    guest.creditsUsed += creditsNeeded;
-    await guest.save();
+    const res = await User.findByIdAndUpdate(userId, { $inc: { credits: -cost } }, { new: true });
+    console.log(`💳 ${u.email} -${cost}  ➜  ${res!.credits}`);
   }
 
-  static async refundCredits(userId: string, amount: number): Promise<void> {
-    const user = await User.findById(userId);
-    if (!user) throw new AppError("User not found", 404);
+  static async deductGuest(fp: string, ip: string, cost: number) {
+    const g = await this.guest(fp, ip);
 
-    user.creditsUsed = Math.max(0, user.creditsUsed - amount);
-    await user.save();
-    console.log(`🔄 Refunded ${amount} credits to ${user.email}`);
+    // unblock if time served
+    if (g.isBlocked && g.blockedUntil && new Date() >= g.blockedUntil) {
+      g.isBlocked = false;
+      g.blockedUntil = undefined;
+      g.blockedReason = undefined;
+      g.requestCount = 0;
+    }
+
+    if (g.isBlocked)
+      throw new AppError(`Blocked until ${g.blockedUntil!.toISOString()}`, 403);
+
+    await this.resetIfNewDay(g);
+
+    const rem = CREDIT_PRICING.GUEST_DAILY_LIMIT - g.dailyCreditsUsed;
+    if (rem < cost)
+      throw new AppError(`Daily limit exhausted  ${g.dailyCreditsUsed}/${CREDIT_PRICING.GUEST_DAILY_LIMIT}`, 429);
+
+    g.dailyCreditsUsed += cost;
+    g.requestCount += 1;
+    g.lastRequestTime = new Date();
+    await g.save();
+
+    console.log(`👤 guest=${g.guestId} -${cost}  ➜  ${rem - cost}`);
+  }
+
+  // ----------------------------------------------------------
+  // Admin utils
+  // ----------------------------------------------------------
+  static async refund(userId: string, amount: number, reason?: string) {
+    if (amount <= 0) throw new AppError("Amount > 0 required", 400);
+    const u = await User.findById(userId);
+    if (!u) throw new AppError("User not found", 404);
+    u.credits += amount;
+    await u.save();
+    console.log(`🔄 ${u.email} +${amount}  reason=${reason ?? "-"}`);
+  }
+
+  static async stats() {
+    const [u, g] = await Promise.all([
+      User.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            active: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
+            credits: { $sum: "$credits" },
+            avg: { $avg: "$credits" },
+          },
+        },
+      ]),
+      GuestUser.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            active: { $sum: { $cond: [{ $gt: ["$dailyCreditsUsed", 0] }, 1, 0] } },
+            used: { $sum: "$dailyCreditsUsed" },
+          },
+        },
+      ]),
+    ]);
+
+    return { users: u[0] || { total: 0, active: 0, credits: 0, avg: 0 }, guests: g[0] || { total: 0, active: 0, used: 0 } };
   }
 }
-
-export default CreditService;
