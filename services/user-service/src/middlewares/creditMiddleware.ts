@@ -1,54 +1,69 @@
 import { Request, Response, NextFunction } from "express";
-import { GuestUser } from "@zemrev/models";
+import { GuestUser, CREDIT_PRICING } from "@zemrev/models";
 import { AppError, catchAsync } from "@zemrev/utils";
 import CreditService from "../services/credit.service.js";
+import AbuseDetectionService from "@/services/abuseDetection.service.js";
 
-class CreditMiddleware {
-  static checkCredits = (creditsNeeded = 1) =>
-    catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
-      const fingerprint = req.headers["x-fingerprint"] as string;
+export default class CreditMiddleware {
+  // ----------------------------------------------------------
+  // Deduct credits before controller runs
+  // ----------------------------------------------------------
+  static spend(cost = 1) {
+    return catchAsync(
+      async (req: Request, _res: Response, next: NextFunction) => {
+        const fp = req.headers["x-fingerprint"] as string;
+        const ip =
+          (req.headers["x-forwarded-for"] as string) || req.ip || "unknown";
 
-      if (req.userType === "guest") {
-        await CreditService.deductGuestCredits(fingerprint, creditsNeeded);
-
-        const guest = await GuestUser.findOne({ fingerprint });
-        if (guest) {
-          req.creditInfo.used = guest.creditsUsed;
-          req.creditInfo.remaining = Math.max(0, 15 - guest.creditsUsed);
+        // Guest
+        if (req.userType === "guest") {
+          await AbuseDetectionService.rateLimit(fp);
+          await AbuseDetectionService.logoutLoop(fp, ip);
+          await CreditService.deductGuest(fp, ip, cost);
+          const g = await GuestUser.findOne({ fingerprint: fp }).lean();
+          if (g) {
+            req.creditInfo = req.creditInfo ?? {
+              total: 0,
+              used: 0,
+              remaining: 0,
+            };
+            req.creditInfo.used = g.dailyCreditsUsed;
+            req.creditInfo.remaining = Math.max(
+              0,
+              CREDIT_PRICING.GUEST_DAILY_LIMIT - g.dailyCreditsUsed
+            );
+          }
+          return next();
         }
 
-        return next();
+        // Registered
+        if (req.userType === "registered") {
+          await AbuseDetectionService.quickSwitch(
+          req.user!._id,
+          fp
+          );
+          await CreditService.deductUser(req.user!._id, cost);
+          const info = await CreditService.userCredits(req.user!._id);
+          req.creditInfo = info;
+          return next();
+        }
+
+        // Anonymous
+        throw new AppError("Authentication required", 401);
       }
+    );
+  }
 
-      if (req.userType === "registered" && req.user) {
-        await CreditService.deductUserCredits(req.user._id, creditsNeeded);
-
-        const creditInfo = await CreditService.getUserCredits(req.user._id);
-        req.creditInfo = {
-          total: creditInfo.total as number,
-          used: creditInfo.used as number,
-          remaining: creditInfo.remaining as number,
-          resetDate: creditInfo.resetDate as Date,
-        };
-
-        return next();
-      }
-
-      throw new AppError("Authentication required to use credits", 401);
-    });
-
-  static attachCreditInfo = (req: Request, res: Response, next: NextFunction) => {
-    const json = res.json.bind(res);
-
-    res.json = (data) => {
-      if (data && typeof data === "object") {
-        data.credits ??= req.creditInfo;
-      }
-      return json(data);
+  // ----------------------------------------------------------
+  // Inject credit snapshot into every JSON response
+  // ----------------------------------------------------------
+  static inject(req: Request, res: Response, next: NextFunction) {
+    const send = res.json.bind(res);
+    res.json = (body: any) => {
+      if (body && typeof body === "object" && body.data)
+        body.credits = req.creditInfo;
+      return send(body);
     };
-
     next();
-  };
+  }
 }
-
-export default CreditMiddleware;
