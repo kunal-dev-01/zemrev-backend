@@ -4,11 +4,9 @@ import { AppError, catchAsync, JWTService } from "@zemrev/utils";
 import "@zemrev/types";
 
 class AuthMiddleware {
-  /**
-   * ---------------------------------------------------------
+  /**---------------------------------------------------------
    * Identify user from JWT if present
-   * ---------------------------------------------------------
-   */
+   * ---------------------------------------------------------*/
   static identifyUser = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
@@ -45,11 +43,9 @@ class AuthMiddleware {
     next();
   });
 
-  /**
-   * ---------------------------------------------------------
+  /**---------------------------------------------------------
    * Requires user to be logged in
-   * ---------------------------------------------------------
-   */
+   * ---------------------------------------------------------*/
   static requireRegisteredUser = (req: Request, _res: Response, next: NextFunction) => {
     if (req.userType !== "registered" || !req.user) {
       throw new AppError("Authentication required", 401);
@@ -57,11 +53,9 @@ class AuthMiddleware {
     next();
   };
 
-  /**
-   * ---------------------------------------------------------
+  /**---------------------------------------------------------
    * Admin-only routes
-   * ---------------------------------------------------------
-   */
+   * ---------------------------------------------------------*/
   static requireAdmin = (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user || req.userType !== "registered") {
       throw new AppError("Admin access required", 403);

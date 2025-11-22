@@ -14,8 +14,6 @@ export class UserService {
 
     delete userObj.id;
     delete userObj._id;
-    delete userObj.stripeCustomerId;
-    delete userObj.subscriptionId;
     delete userObj.__v;
     delete userObj.googleId
     delete userObj.password;
