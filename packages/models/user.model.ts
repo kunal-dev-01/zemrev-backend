@@ -3,14 +3,10 @@ import bcrypt from "bcryptjs";
 import {
   IUser,
   IUserModel,
-  PlanType,
   UserRole,
   AuthProvider,
-  SubscriptionStatus,
   GoogleProfile,
-  planDetailsSchema,
 } from "./user.interface.js";
-import { getPlanDetails } from "./plans.js";
 
 const userSchema = new Schema<IUser, IUserModel>(
   {
@@ -64,47 +60,29 @@ const userSchema = new Schema<IUser, IUserModel>(
       enum: Object.values(UserRole),
       default: UserRole.USER,
     },
-
-    planType: {
-      type: String,
-      enum: Object.values(PlanType),
-      default: PlanType.CUSTOM,
-    },
-    planActive: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    plan: {
-      type: planDetailsSchema,
-      required: true,
-    },
-
+    
+    // 💳 CREDITS SYSTEM (NO PLANS)
     credits: {
       type: Number,
       default: 0,
       min: 0,
+      index: true,
     },
-    creditsUsed: {
-      type: Number,
-      default: 0,
-      min: 0,
+    status: {
+      type: String,
+      enum: ["inactive", "active"],
+      default: "inactive",
+      index: true,
     },
-
+    
+    // 💰 STRIPE (ONE-TIME PAYMENTS ONLY)
     stripeCustomerId: {
       type: String,
       sparse: true,
       index: true,
     },
-    subscriptionStatus: {
-      type: String,
-      enum: Object.values(SubscriptionStatus),
-      default: SubscriptionStatus.INACTIVE,
-    },
-    planStartedAt: {
-      type: Date,
-    },
-
+    
+    // 🔐 AUTHENTICATION
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -129,7 +107,8 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: Date,
       select: false,
     },
-
+    
+    // 🔒 TWO-FACTOR AUTH
     twoFactorSecret: {
       type: String,
       select: false,
@@ -146,7 +125,8 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: String,
       select: false,
     },
-
+    
+    // 🚫 ACCOUNT STATUS
     isActive: {
       type: Boolean,
       default: true,
@@ -158,11 +138,6 @@ const userSchema = new Schema<IUser, IUserModel>(
     blockedReason: {
       type: String,
     },
-    registrationFingerprint: {
-      type: String,
-      sparse: true,
-      index: true,
-    },
   },
   {
     timestamps: true,
@@ -171,11 +146,12 @@ const userSchema = new Schema<IUser, IUserModel>(
   }
 );
 
+// Indexes
 userSchema.index({ email: 1, role: 1 });
-userSchema.index({ planType: 1, planActive: 1 });
-userSchema.index({ subscriptionStatus: 1 });
-userSchema.index({ registrationFingerprint: 1 });
+userSchema.index({ status: 1, credits: 1 });
+userSchema.index({ stripeCustomerId: 1 });
 
+// Pre-save hooks (keep existing password hashing)
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   if (this.password) {
@@ -190,16 +166,13 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-userSchema.methods.comparePassword = async function (
-  candidatePassword: string
-): Promise<boolean> {
+// Methods (keep existing)
+userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-userSchema.methods.changedPasswordAfter = function (
-  JWTTimestamp: number
-): boolean {
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp: number): boolean {
   if (!this.passwordChangedAt) return false;
   const changedTimestamp = Math.floor(this.passwordChangedAt.getTime() / 1000);
   return JWTTimestamp < changedTimestamp;
@@ -212,6 +185,7 @@ userSchema.statics.findOrCreateGoogleUser = async function (
     let user = await this.findOne({ googleId: profile.googleId });
 
     if (user) {
+      // Update profile if changed
       let hasChanges = false;
       if (user.email !== profile.email) {
         user.email = profile.email;
@@ -227,8 +201,9 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       return user;
     }
 
+    // Check if email already exists (merge accounts)
     const existingEmailUser = await this.findOne({ email: profile.email });
-
+    
     if (existingEmailUser) {
       existingEmailUser.googleId = profile.googleId;
       existingEmailUser.authProvider = AuthProvider.GOOGLE;
@@ -237,8 +212,7 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       return existingEmailUser;
     }
 
-    const customPlan = getPlanDetails(PlanType.CUSTOM);
-
+    // ⚠️ NEW USER: Start with 0 credits, inactive status
     const newUser = await this.create({
       googleId: profile.googleId,
       authProvider: AuthProvider.GOOGLE,
@@ -246,17 +220,13 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       fullName: profile.name,
       isActive: true,
       isEmailVerified: true,
-      planType: PlanType.CUSTOM,
-      planActive: false,
-      plan: customPlan,
       credits: 0,
-      creditsUsed: 0,
-      subscriptionStatus: SubscriptionStatus.INACTIVE,
+      status: "inactive",
     });
 
     return newUser;
   } catch (err) {
-    console.log("❌ Error in findOrCreateGoogleUser:", err);
+    console.error("❌ Error in findOrCreateGoogleUser:", err);
     throw err;
   }
 };

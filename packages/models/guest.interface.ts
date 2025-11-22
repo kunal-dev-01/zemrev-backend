@@ -1,19 +1,19 @@
-import { Document } from "mongoose";
+import { Document, Types } from "mongoose";
 
 export interface IGuestUser extends Document {
+  guestId: string;
   fingerprint: string;
   ipAddress: string;
-  creditsUsed: number;
-  lastResetDate: Date;
+  dailyCreditsUsed: number;
+  lastResetAt: Date;
   requestCount: number;
   lastRequestTime: Date;
   isBlocked: boolean;
-  blockedUntil?: Date | undefined;
-  
+  blockedUntil?: Date;
+  blockedReason?: string;
   isConverted: boolean;
-  convertedToEmail?: string;
+  convertedToUserId?: Types.ObjectId;
   convertedAt?: Date;
-  
   createdAt: Date;
   updatedAt: Date;
 }

@@ -3,10 +3,15 @@ import { IGuestUser } from "./guest.interface.js";
 
 const guestUserSchema = new Schema<IGuestUser>(
   {
-    fingerprint: {
+    guestId: {
       type: String,
       required: true,
       unique: true,
+      index: true,
+    },
+    fingerprint: {
+      type: String,
+      required: true,
       index: true,
     },
     ipAddress: {
@@ -14,14 +19,21 @@ const guestUserSchema = new Schema<IGuestUser>(
       required: true,
       index: true,
     },
-    creditsUsed: {
+    dailyCreditsUsed: {
       type: Number,
       default: 0,
       min: 0,
+      max: 10,
     },
-    lastResetDate: {
+    lastResetAt: {
       type: Date,
-      default: Date.now,
+      required: true,
+      default: () => {
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        return today;
+      },
+      index: true,
     },
     requestCount: {
       type: Number,
@@ -34,18 +46,23 @@ const guestUserSchema = new Schema<IGuestUser>(
     isBlocked: {
       type: Boolean,
       default: false,
+      index: true,
     },
     blockedUntil: {
       type: Date,
-      default: undefined,
     },
+    blockedReason: {
+      type: String,
+    },
+    // Conversion tracking (keep for analytics)
     isConverted: {
       type: Boolean,
       default: false,
       index: true,
     },
-    convertedToEmail: {
-      type: String,
+    convertedToUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
       index: true,
     },
     convertedAt: {
@@ -57,18 +74,18 @@ const guestUserSchema = new Schema<IGuestUser>(
   }
 );
 
-guestUserSchema.index({ lastResetDate: 1 });
+// Indexes
+guestUserSchema.index({ guestId: 1 });
+guestUserSchema.index({ fingerprint: 1, lastResetAt: 1 });
 guestUserSchema.index({ isBlocked: 1, blockedUntil: 1 });
-guestUserSchema.index({ fingerprint: 1, isConverted: 1 });
+guestUserSchema.index({ lastResetAt: 1 }); // For cleanup cron jobs
+
+// Auto-delete guests after 90 days of inactivity
 guestUserSchema.index(
-  { convertedAt: 1 }, 
-  { 
-    expireAfterSeconds: 2592000,
-    partialFilterExpression: { isConverted: true }
+  { updatedAt: 1 },
+  {
+    expireAfterSeconds: 7776000, // 90 days
   }
 );
 
-export const GuestUser = mongoose.model<IGuestUser>(
-  "GuestUser",
-  guestUserSchema
-);
+export const GuestUser = mongoose.model<IGuestUser>("GuestUser", guestUserSchema);

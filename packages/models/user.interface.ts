@@ -1,12 +1,8 @@
-import { Document, Model, Schema } from "mongoose";
+import { Document, Model } from "mongoose";
 
 export enum UserRole {
   USER = "user",
   ADMIN = "admin",
-}
-
-export enum PlanType {
-  CUSTOM = "custom",
 }
 
 export enum AuthProvider {
@@ -14,22 +10,7 @@ export enum AuthProvider {
   GOOGLE = "google",
 }
 
-export enum SubscriptionStatus {
-  INACTIVE = "inactive",
-  ACTIVE = "active",
-  CANCELED = "canceled",
-}
-
-export type PlanPriority = "custom";
-
-export interface PlanDetails {
-  type: PlanType;
-  concurrentJobLimit: number;
-  priority: PlanPriority;
-  price: number;
-  features: string[];
-  perCreditPrice: number;
-}
+export type UserStatus = "inactive" | "active";
 
 export interface Address {
   street?: string;
@@ -50,13 +31,16 @@ export interface SignupData {
   fullName: string;
   email: string;
   password: string;
-  selectedCredits: number;
+  creditsRequested: number; // NEW: Replaces selectedPlan
 }
 
 export interface LoginResponse {
   user: Partial<IUser>;
   accessToken: string;
   refreshToken: string;
+  requires2FA?: boolean;
+  tempToken?: string;
+  requiresPayment?: boolean; // NEW: For Google OAuth first-time users
 }
 
 export interface IUserMethods {
@@ -77,71 +61,33 @@ export interface IUser extends Document, IUserMethods {
   phoneNumber?: string;
   address?: Address;
   role: UserRole;
-
-  planType: PlanType;
-  planActive: boolean;
-  plan: PlanDetails;
-
   
-  credits: number; // Total credits bought
-  creditsUsed: number; // Credits used till now
-
+  // 💳 CREDITS SYSTEM
+  credits: number;
+  status: UserStatus;
+  
+  // 💰 STRIPE
   stripeCustomerId?: string;
-  subscriptionStatus: SubscriptionStatus;
-  planStartedAt?: Date;
-
+  
+  // 🔐 AUTHENTICATION
   isEmailVerified: boolean;
-  emailVerificationToken?: string;
-  emailVerificationExpires?: Date;
-  passwordResetToken?: string;
-  passwordResetExpires?: Date;
+  emailVerificationToken?: string | undefined;
+  emailVerificationExpires?: Date | undefined;
+  passwordResetToken?: string | undefined;
+  passwordResetExpires?: Date | undefined;
   passwordChangedAt?: Date;
-
+  
+  // 🔒 TWO-FACTOR AUTH
   twoFactorSecret?: string;
   twoFactorEnabled: boolean;
   twoFactorBackupCodes?: string[];
   superKey?: string;
-
+  
+  // 🚫 ACCOUNT STATUS
   isActive: boolean;
   isBlocked: boolean;
   blockedReason?: string;
-  registrationFingerprint?: string;
-
+  
   createdAt: Date;
   updatedAt: Date;
 }
-
-export const planDetailsSchema = new Schema<PlanDetails>(
-  {
-    type: {
-      type: String,
-      enum: Object.values(PlanType),
-      required: true,
-    },
-    concurrentJobLimit: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-    priority: {
-      type: String,
-      enum: ["custom"],
-      required: true,
-    },
-    price: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    features: {
-      type: [String],
-      default: [],
-    },
-    perCreditPrice: {
-      type: Number,
-      required: true,
-      default: 0.002,
-    },
-  },
-  { _id: false }
-);
