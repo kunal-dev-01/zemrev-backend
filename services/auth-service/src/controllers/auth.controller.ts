@@ -21,8 +21,11 @@ class AuthController {
    * Signup
    * ---------------------------*/
   static signup = catchAsync(async (req: Request, res: Response) => {
-    const { fullName, email, password, selectedPlan } = req.body;
-    if (!fullName || !email || !password) throw new AppError("Missing fields", 400);
+    const { fullName, email, password, creditsRequested } = req.body;
+
+    if (!fullName || !email || !password || !creditsRequested) {
+      throw new AppError("Missing required fields", 400);
+    }
 
     const fingerprint = req.headers["x-fingerprint"] as string;
 
@@ -30,7 +33,7 @@ class AuthController {
       fullName,
       email,
       password,
-      selectedPlan,
+      creditsRequested,
       fingerprint,
     });
 
@@ -38,13 +41,12 @@ class AuthController {
 
     res.status(201).json({
       status: "success",
-      message: result.requiresPayment
-        ? "Account created. Complete payment to activate your plan."
-        : "Account created. Please verify your email.",
+      message: "Account created. Complete payment to activate your account.",
       data: {
         user: result.user,
         accessToken: result.accessToken,
         requiresPayment: result.requiresPayment,
+        creditsRequested: result.creditsRequested,
       },
     });
   });
