@@ -11,7 +11,6 @@ const limiter = rateLimit({
   message: "Too many requests",
 });
 
-// Webhook (NO AUTH - Stripe calls this)
 router.post(
   "/webhook",
   express.raw({ type: "application/json" }),
@@ -19,14 +18,13 @@ router.post(
 );
 
 router.use(limiter);
-router.use(authMiddleware.identifyUser);
-router.use(authMiddleware.requireRegisteredUser);
+router.use(authMiddleware.whoami);
+router.use(authMiddleware.registered);
 
-router.post("/create-checkout", PaymentController.createCheckout);
-router.post("/buy-credits", PaymentController.buyCredits);
+router.post("/buy-credits", PaymentController.createCheckout);
 router.get("/verify", PaymentController.verifyPayment);
-router.post("/cancel-subscription", PaymentController.cancelSubscription);
-router.get("/billing-portal", PaymentController.getBillingPortal);
-router.get("/history", PaymentController.getPaymentHistory);
+router.get("/billing-portal", PaymentController.billingPortal);
+router.get("/history", PaymentController.history);
+router.get("/total-spent", PaymentController.totalSpent);
 
 export default router;
