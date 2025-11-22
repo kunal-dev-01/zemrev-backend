@@ -1,162 +1,107 @@
 import { Request, Response, NextFunction } from "express";
-import { User, GuestUser, UserRole } from "@zemrev/models";
+import { User, GuestUser, UserRole} from "@zemrev/models";
 import { JWTService, AppError, catchAsync } from "@zemrev/utils";
 import CreditService from "../services/credit.service.js";
+import "@zemrev/types"
 
-class AuthMiddleware {
-  static verifyServiceToken = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
-    const serviceToken = req.headers["x-service-token"] as string;
-    const serviceId = req.headers["x-service-id"] as string;
+export default class AuthMiddleware {
+  // ----------------------------------------------------------
+  // Internal service → service
+  // ----------------------------------------------------------
+  static service = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
+    const token = req.headers["x-service-token"] as string;
+    const id = req.headers["x-service-id"] as string;
 
-    if (!serviceToken || !serviceId) {
-      throw new AppError("Service authentication required", 401);
-    }
-
-    const validTokens: Record<string, string> = {
-      "tool-service": process.env.TOOL_SERVICE_SECRET!,
-      "analytics-service": process.env.ANALYTICS_SERVICE_SECRET!,
+    const secrets: Record<string, string | undefined> = {
+      "tool-service": process.env.TOOL_SERVICE_SECRET,
+      "analytics-service": process.env.ANALYTICS_SERVICE_SECRET,
     };
 
-    const expected = validTokens[serviceId];
-    if (!expected || serviceToken !== expected) {
+    if (!token || !id || !secrets[id] || token !== secrets[id])
       throw new AppError("Invalid service token", 401);
-    }
 
     next();
   });
 
-  static identifyUser = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
+  // ----------------------------------------------------------
+  // Attach identity: JWT → guest → anon
+  // ----------------------------------------------------------
+  static whoami = catchAsync(async (req: Request, _res: Response, next: NextFunction) => {
     const token = req.headers.authorization?.split(" ")[1];
-    const fingerprint = req.headers["x-fingerprint"] as string;
+    const fp = req.headers["x-fingerprint"] as string;
+    const ip = (req.headers["x-forwarded-for"] as string) || req.ip || "unknown";
 
+    // 1. JWT path
     if (token) {
       try {
-        const decoded = JWTService.verifyAccessToken(token);
-        const user = await User.findById(decoded.userId);
-
-        if (user && user.isActive && !user.isBlocked) {
+        const { userId } = JWTService.verifyAccessToken(token);
+        const u = await User.findById(userId).lean();
+        if (u && u.isActive && !u.isBlocked) {
           req.userType = "registered";
           req.user = {
-            _id: user._id.toString(),
-            fullName: user.fullName,
-            email: user.email,
-            role: user.role,
-            plan: user.plan,
-            planType: user.planType,
-            planActive: user.planActive,
-            creditsUsed: user.creditsUsed,
-            isEmailVerified: user.isEmailVerified,
+            _id: u._id.toString(),
+            fullName: u.fullName,
+            email: u.email,
+            role: u.role,
+            credits: u.credits,
+            status: u.status,
+            isEmailVerified: u.isEmailVerified,
           };
-
-          const creditInfo = await CreditService.getUserCredits(user._id.toString());
-          req.creditInfo = {
-            total: creditInfo.total as number,
-            used: creditInfo.used as number,
-            remaining: creditInfo.remaining as number,
-            resetDate: creditInfo.resetDate as Date,
-          };
-
+          req.creditInfo = await CreditService.userCredits(u._id.toString());
           return next();
         }
       } catch {
-        console.log("Invalid token");
+        // ignore
       }
     }
 
-    if (fingerprint) {
-      const convertedGuest = await GuestUser.findOne({
-        fingerprint,
-        isConverted: true,
-      });
-
-      if (convertedGuest && convertedGuest.convertedAt) {
-        const now = new Date();
-        const convertedDate = new Date(convertedGuest.convertedAt);
-
-        const isSameDay = (
-          now.getUTCFullYear() === convertedDate.getUTCFullYear() &&
-          now.getUTCMonth() === convertedDate.getUTCMonth() &&
-          now.getUTCDate() === convertedDate.getUTCDate()
-        );
-
-        if (isSameDay) {
-          throw new AppError(
-            "This device has already been registered today. Please login to your account.",
-            403
-          );
-        }
+    // 2. Guest path
+    if (fp) {
+      // one-time-convert guard
+      const converted = await GuestUser.findOne({ fingerprint: fp, isConverted: true });
+      if (converted) {
+        const sameDay =
+          new Date().toISOString().slice(0, 10) ===
+          new Date(converted.convertedAt!).toISOString().slice(0, 10);
+        if (sameDay) throw new AppError("Device already registered today. Please log in.", 403);
       }
 
-      const guest = await GuestUser.findOne({ fingerprint });
-      if (!guest) {
-        req.userType = "anonymous";
-        return next();
-      }
-
-      if (guest.isBlocked && guest.blockedUntil) {
-        const now = new Date();
-        if (now < guest.blockedUntil) {
-          const remainingMinutes = Math.ceil(
-            (guest.blockedUntil.getTime() - now.getTime()) / 60000
-          );
-          throw new AppError(
-            `Temporarily blocked. Try again in ${remainingMinutes} minutes.`,
-            403
-          );
-        }
-        guest.isBlocked = false;
-        guest.blockedUntil = undefined;
-      }
-
+      const info = await CreditService.guestCredits(fp, ip);
       req.userType = "guest";
       req.guest = {
-        _id: guest._id.toString(),
-        fingerprint: guest.fingerprint,
-        ipAddress: guest.ipAddress,
-        creditsUsed: guest.creditsUsed,
-        lastResetDate: guest.lastResetDate,
+        _id: fp,
+        guestId: fp,
+        fingerprint: fp,
+        ipAddress: ip,
+        dailyCreditsUsed: info.used,
+        lastResetAt: info.resetAt,
       };
-
-      req.creditInfo = {
-        total: 15,
-        used: guest.creditsUsed,
-        remaining: Math.max(0, 15 - guest.creditsUsed),
-        resetDate: guest.lastResetDate,
-      };
-
+      req.creditInfo = info;
       return next();
     }
 
+    // 3. Anonymous
     req.userType = "anonymous";
     req.creditInfo = { total: 0, used: 0, remaining: 0 };
     next();
   });
 
-  static requireRegisteredUser = (req: Request, _res: Response, next: NextFunction) => {
-    if (req.userType !== "registered" || !req.user) {
-      throw new AppError("Registered account required", 401);
-    }
+  // ----------------------------------------------------------
+  // Guards
+  // ----------------------------------------------------------
+  static registered = (req: Request, _res: Response, next: NextFunction) => {
+    if (req.userType !== "registered") throw new AppError("Registered account required", 401);
     next();
   };
 
-  static requireAnyAuth = (req: Request, _res: Response, next: NextFunction) => {
-    if (req.userType === "anonymous") {
-      throw new AppError("Authentication required", 401);
-    }
+  static anyAuth = (req: Request, _res: Response, next: NextFunction) => {
+    if (req.userType === "anonymous") throw new AppError("Authentication required", 401);
     next();
   };
 
-  static requireAdmin = (req: Request, _res: Response, next: NextFunction) => {
-    if (req.userType !== "registered" || !req.user) {
+  static admin = (req: Request, _res: Response, next: NextFunction) => {
+    if (req.userType !== "registered" || req.user!.role !== UserRole.ADMIN)
       throw new AppError("Admin access required", 403);
-    }
-
-    if (req.user.role !== UserRole.ADMIN) {
-      throw new AppError("Admin access required", 403);
-    }
-
     next();
   };
 }
-
-export default AuthMiddleware;
