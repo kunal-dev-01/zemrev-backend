@@ -31,7 +31,6 @@ export interface SignupData {
   fullName: string;
   email: string;
   password: string;
-  creditsRequested: number; // NEW: Replaces selectedPlan
 }
 
 export interface LoginResponse {
@@ -40,7 +39,6 @@ export interface LoginResponse {
   refreshToken: string;
   requires2FA?: boolean;
   tempToken?: string;
-  requiresPayment?: boolean; // NEW: For Google OAuth first-time users
 }
 
 export interface IUserMethods {
@@ -58,7 +56,6 @@ export interface IUser extends Document, IUserMethods {
   fullName: string;
   email: string;
   password?: string;
-  phoneNumber?: string;
   address?: Address;
   role: UserRole;
   

@@ -43,11 +43,6 @@ const userSchema = new Schema<IUser, IUserModel>(
       minlength: [8, "Password must be at least 8 characters"],
       select: false,
     },
-    phoneNumber: {
-      type: String,
-      trim: true,
-      match: [/^[0-9]{10,15}$/, "Please provide a valid phone number"],
-    },
     address: {
       street: { type: String, trim: true },
       city: { type: String, trim: true },

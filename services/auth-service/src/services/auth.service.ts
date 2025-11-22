@@ -2,8 +2,7 @@ import {
   User,
   GuestUser,
   UserRole,
-  SignupData,
-  CREDIT_PRICING,
+  SignupData
 } from "@zemrev/models";
 import env from "@/config/env.config.js";
 import { AppError, JWTService,EmailProducer } from "@zemrev/utils";
@@ -17,23 +16,11 @@ class AuthService {
   static async signup(
     data: SignupData & { fingerprint?: string }
   ): Promise<any> {
-    const { email, creditsRequested, fingerprint } = data;
+    const { email, fingerprint } = data;
 
     // Validate email
     const existingUser = await User.findOne({ email });
     if (existingUser) throw new AppError("Email already registered", 400);
-
-    // Validate credit purchase
-    if (!creditsRequested || typeof creditsRequested !== "number") {
-      throw new AppError("Please specify how many credits to purchase", 400);
-    }
-
-    if (creditsRequested < CREDIT_PRICING.MINIMUM_PURCHASE) {
-      throw new AppError(
-        `Minimum purchase is ${CREDIT_PRICING.MINIMUM_PURCHASE} credits`,
-        400
-      );
-    }
 
     // Prevent abuse: Check if guest was already converted today
     if (fingerprint) {
@@ -110,8 +97,6 @@ class AuthService {
       user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      requiresPayment: true,
-      creditsRequested,
     };
   }    
 

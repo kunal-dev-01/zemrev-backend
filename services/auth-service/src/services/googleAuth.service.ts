@@ -4,7 +4,6 @@ import env from "@/config/env.config.js";
 import { User } from "@zemrev/models";
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
-
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
 
@@ -73,9 +72,6 @@ class GoogleAuthService {
         avatar: googleUser.picture ?? "",
       });
 
-      // ⚠️ CHECK: Is this a new user without credits?
-      const isFirstTime = user.credits === 0 && user.status === "inactive";
-
       const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
@@ -86,16 +82,6 @@ class GoogleAuthService {
         user._id.toString(),
         jwtTokens.refreshToken
       );
-
-      // If first-time user, redirect to payment page
-      if (isFirstTime) {
-        return {
-          user: this.formatUser(user),
-          accessToken: jwtTokens.accessToken,
-          refreshToken: jwtTokens.refreshToken,
-          requiresPayment: true, 
-        };
-      }
 
       return {
         user: this.formatUser(user),
@@ -139,12 +125,12 @@ class GoogleAuthService {
    */
   private formatUser(user: any) {
     return {
-      _id: user._id.toString(),
       fullName: user.fullName,
       email: user.email,
       credits: user.credits,
       status: user.status,
       role: user.role,
+      address: user.address,
       isEmailVerified: user.isEmailVerified,
       authProvider: user.authProvider,
       isActive: user.isActive,

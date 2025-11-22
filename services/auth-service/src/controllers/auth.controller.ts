@@ -21,9 +21,9 @@ class AuthController {
    * Signup
    * ---------------------------*/
   static signup = catchAsync(async (req: Request, res: Response) => {
-    const { fullName, email, password, creditsRequested } = req.body;
+    const { fullName, email, password } = req.body;
 
-    if (!fullName || !email || !password || !creditsRequested) {
+    if (!fullName || !email || !password) {
       throw new AppError("Missing required fields", 400);
     }
 
@@ -33,7 +33,6 @@ class AuthController {
       fullName,
       email,
       password,
-      creditsRequested,
       fingerprint,
     });
 
