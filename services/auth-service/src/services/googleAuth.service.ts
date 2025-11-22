@@ -73,6 +73,9 @@ class GoogleAuthService {
         avatar: googleUser.picture ?? "",
       });
 
+      // ⚠️ CHECK: Is this a new user without credits?
+      const isFirstTime = user.credits === 0 && user.status === "inactive";
+
       const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
@@ -84,10 +87,21 @@ class GoogleAuthService {
         jwtTokens.refreshToken
       );
 
+      // If first-time user, redirect to payment page
+      if (isFirstTime) {
+        return {
+          user: this.formatUser(user),
+          accessToken: jwtTokens.accessToken,
+          refreshToken: jwtTokens.refreshToken,
+          requiresPayment: true, 
+        };
+      }
+
       return {
         user: this.formatUser(user),
         accessToken: jwtTokens.accessToken,
         refreshToken: jwtTokens.refreshToken,
+        requiresPayment: false,
       };
     } catch (error) {
       console.error("❌ Google OAuth Error:", error);
@@ -128,19 +142,14 @@ class GoogleAuthService {
       _id: user._id.toString(),
       fullName: user.fullName,
       email: user.email,
-      plan: user.plan,
-      planType: user.planType,
-      planActive: user.planActive,
+      credits: user.credits,
+      status: user.status,
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       authProvider: user.authProvider,
-      credits: user.credits,
-      creditsUsed: user.creditsUsed,
-      nextCreditReset: user.nextCreditReset,
       isActive: user.isActive,
       isBlocked: user.isBlocked,
       twoFactorEnabled: user.twoFactorEnabled,
-      subscriptionStatus: user.subscriptionStatus,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
