@@ -7,7 +7,6 @@ const guestUserSchema = new Schema<IGuestUser>(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     fingerprint: {
       type: String,
@@ -33,7 +32,6 @@ const guestUserSchema = new Schema<IGuestUser>(
         today.setUTCHours(0, 0, 0, 0);
         return today;
       },
-      index: true,
     },
     requestCount: {
       type: Number,

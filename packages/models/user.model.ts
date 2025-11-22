@@ -79,7 +79,6 @@ const userSchema = new Schema<IUser, IUserModel>(
     stripeCustomerId: {
       type: String,
       sparse: true,
-      index: true,
     },
     
     // 🔐 AUTHENTICATION

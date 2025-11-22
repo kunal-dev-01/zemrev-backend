@@ -51,7 +51,6 @@ const paymentSchema = new Schema<IPayment>(
     },
     stripeSessionId: {
       type: String,
-      index: true,
     },
     amount: {
       type: Number,
