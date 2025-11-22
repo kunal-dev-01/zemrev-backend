@@ -1,5 +1,3 @@
-// src/config/appConfig/env.config.ts
-
 import joi from 'joi';
 import dotenv from 'dotenv';
 

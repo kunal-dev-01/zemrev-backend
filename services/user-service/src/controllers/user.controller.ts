@@ -61,29 +61,6 @@ class UserController {
     }
   );
 
-  static updatePhoneNumber = catchAsync(
-    async (req: Request, res: Response): Promise<void> => {
-      const userId = req.user?._id;
-      const { phoneNumber } = req.body;
-
-      if (!userId) {
-        throw new AppError("User not authenticated", 401);
-      }
-
-      const updatedPhoneNumber = await UserService.updatePhoneNumber(
-        userId.toString(),
-        phoneNumber
-      );
-
-      res.status(200).json({
-        status: "success",
-        data: {
-          phoneNumber: updatedPhoneNumber,
-        },
-      });
-    }
-  );
-
   static updateAddress = catchAsync(
     async (req: Request, res: Response): Promise<void> => {
       const userId = req.user?._id;

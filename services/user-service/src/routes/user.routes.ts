@@ -19,8 +19,6 @@ router.get("/profile", UserController.getProfile);
 
 router.patch("/update-password", UserController.updatePassword);
 
-router.patch("/update-phone-number", UserController.updatePhoneNumber);
-
 router.patch("/update-address", UserController.updateAddress);
 
 router.patch("/update-full-name", UserController.updateFullName);

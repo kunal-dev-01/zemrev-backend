@@ -62,21 +62,6 @@ export class UserService {
   }
 
   /* ----------------------------------------------------
-     Update Phone Number
-  ---------------------------------------------------- */
-  static async updatePhoneNumber(userId: string, phoneNumber: string) {
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { phoneNumber },
-      { new: true }
-    );
-
-    if (!user) throw new AppError("User not found", 404);
-
-    return user.phoneNumber;
-  }
-
-  /* ----------------------------------------------------
      Update Address
   ---------------------------------------------------- */
   static async updateAddress(userId: string, address: Address) {
