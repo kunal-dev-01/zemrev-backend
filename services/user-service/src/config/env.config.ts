@@ -20,9 +20,6 @@ const envSchema = joi
     STRIPE_SECRET_KEY: joi.string().required(),
     STRIPE_PUBLISHABLE_KEY: joi.string().required(),
     STRIPE_WEBHOOK_SECRET: joi.string().required(),
-    STRIPE_BASIC_PRICE_ID: joi.string().required(),
-    STRIPE_PRO_PRICE_ID: joi.string().required(),
-    STRIPE_ELITE_PRICE_ID: joi.string().required(),
     CLIENT_URL: joi.string().uri().required(),
     NOTIFICATION_SERVICE_URL: joi.string().uri().required(),
   })
@@ -50,9 +47,6 @@ export default value as {
   STRIPE_SECRET_KEY: string;
   STRIPE_PUBLISHABLE_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
-  STRIPE_BASIC_PRICE_ID: string;
-  STRIPE_PRO_PRICE_ID: string;
-  STRIPE_ELITE_PRICE_ID: string;
   CLIENT_URL: string;
   NOTIFICATION_SERVICE_URL: string;
 };
