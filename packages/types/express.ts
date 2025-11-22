@@ -1,5 +1,3 @@
-import { PlanType, UserRole } from "@zemrev/models";
-
 declare global {
   namespace Express {
     interface Request {
@@ -7,30 +5,28 @@ declare global {
         _id: string;
         fullName: string;
         email: string;
-        role: UserRole;
-        plan: any;
-        planType: PlanType;
-        planActive: boolean;
-        creditsUsed: number;
+        role: string;
+        credits: number;
+        status: "inactive" | "active";
         isEmailVerified: boolean;
       };
-
       guest?: {
         _id: string;
+        guestId: string;
         fingerprint: string;
         ipAddress: string;
-        creditsUsed: number;
-        lastResetDate: Date;
+        dailyCreditsUsed: number;
+        lastResetAt: Date;
       };
-
-      userType: "guest" | "registered" | "anonymous";
-
-      creditInfo: {
-        total: number | string;
+      userType?: "anonymous" | "guest" | "registered";
+      creditInfo?: {
+        total: number;
         used: number;
-        remaining: number | string;
-        resetDate?: Date;
+        remaining: number;
+        resetDate?: Date; // Only for guests
       };
     }
   }
 }
+
+export {};
