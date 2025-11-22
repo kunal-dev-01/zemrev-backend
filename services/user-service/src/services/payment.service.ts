@@ -1,48 +1,72 @@
-import {Payment, PaymentStatus, PaymentMethod, PlanType } from "@zemrev/models";
+import { Payment, PaymentStatus, PaymentMethod, PaymentType } from "@zemrev/models";
 
-class PaymentService {
-  static async getPaymentHistory(userId: string, page: number, limit: number): Promise<any> {
-    const skip = (page - 1) * limit;
-
-    const payments = await Payment.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Payment.countDocuments({ userId });
-
-    return {
-      payments,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  static async recordPayment(
+export default class PaymentService {
+  // ----------------------------------------------------------
+  // Record successful payment (idempotent)
+  // ----------------------------------------------------------
+  static async record(
     userId: string,
-    stripePaymentId: string,
+    pid: string,        // stripePaymentId
+    sid: string,        // stripeSessionId
     amount: number,
-    planType: PlanType,
-    metadata?: any
+    credits: number
   ): Promise<void> {
+    if (await Payment.exists({ stripePaymentId: pid })) {
+      console.log(`⚠️ dup payment ${pid}`);
+      return;
+    }
+
     await Payment.create({
       userId,
-      stripePaymentId,
+      stripePaymentId: pid,
+      stripeSessionId: sid,
       amount,
       currency: "usd",
-      planType,
+      paymentType: PaymentType.CREDIT_PURCHASE,
+      creditsPurchased: credits,
       paymentStatus: PaymentStatus.SUCCEEDED,
       paymentMethod: PaymentMethod.CARD,
       paidAt: new Date(),
-      metadata,
     });
 
-    console.log(`💰 Payment recorded: ${userId} | ${planType} | ${amount}`);
+    console.log(`💰 ${userId}  $${amount}  ${credits}c`);
+  }
+
+  // ----------------------------------------------------------
+  // Idempotency guard
+  // ----------------------------------------------------------
+  static async findBySession(sessionId: string) {
+    return Payment.findOne({ stripeSessionId: sessionId });
+  }
+
+  // ----------------------------------------------------------
+  // Paginated history
+  // ----------------------------------------------------------
+  static async history(userId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [payments, total] = await Promise.all([
+      Payment.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Payment.countDocuments({ userId }),
+    ]);
+
+    return {
+      payments,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    };
+  }
+
+  // ----------------------------------------------------------
+  // Lifetime spend
+  // ----------------------------------------------------------
+  static async totalSpent(userId: string): Promise<number> {
+    const [res] = await Payment.aggregate([
+      { $match: { userId, paymentStatus: PaymentStatus.SUCCEEDED } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+    return res?.total ?? 0;
   }
 }
-
-export default PaymentService;
