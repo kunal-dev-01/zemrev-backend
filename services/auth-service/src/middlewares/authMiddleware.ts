@@ -28,10 +28,8 @@ class AuthMiddleware {
           fullName: user.fullName,
           email: user.email,
           role: user.role,
-          plan: user.plan,
-          planType: user.planType,
-          planActive: user.planActive,
-          creditsUsed: user.creditsUsed,
+          credits: user.credits,
+          status: user.status,
           isEmailVerified: user.isEmailVerified,
         };
 
