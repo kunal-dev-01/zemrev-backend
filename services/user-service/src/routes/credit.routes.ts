@@ -12,27 +12,34 @@ const limiter = rateLimit({
 });
 
 router.use(limiter);
+router.use(authMiddleware.whoami);
 
+// Public routes (guest or registered)
 router.get(
   "/status",
-  authMiddleware.identifyUser,
-  authMiddleware.requireAnyAuth,
-  CreditController.getStatus
+  authMiddleware.registered,
+  CreditController.status
 );
 
+// Admin routes
 router.post(
   "/refund",
-  authMiddleware.identifyUser,
-  authMiddleware.requireAdmin,
-  CreditController.refundCredits
+  authMiddleware.admin,
+  CreditController.refund
 );
 
-// INTERNAL ROUTE - Deduct credits (called by tool-service)
+router.get(
+  "/stats",
+  authMiddleware.admin,
+  CreditController.stats
+);
+
+// Internal service route (for tool-service to deduct credits)
 router.post(
-  "/deduct",
-  authMiddleware.verifyServiceToken,
+  "/internal/deduct",
+  authMiddleware.service,
   async (req, res) => {
-    // Handled by middleware in tool-service
+    // This is handled by creditMiddleware in tool-service
     res.status(200).json({ status: "success" });
   }
 );
