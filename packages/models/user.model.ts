@@ -79,6 +79,7 @@ const userSchema = new Schema<IUser, IUserModel>(
     stripeCustomerId: {
       type: String,
       sparse: true,
+      index: true,
     },
     
     // 🔐 AUTHENTICATION
@@ -148,7 +149,6 @@ const userSchema = new Schema<IUser, IUserModel>(
 // Indexes
 userSchema.index({ email: 1, role: 1 });
 userSchema.index({ status: 1, credits: 1 });
-userSchema.index({ stripeCustomerId: 1 });
 
 // Pre-save hooks (keep existing password hashing)
 userSchema.pre("save", async function (next) {

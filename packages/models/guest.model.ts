@@ -7,6 +7,7 @@ const guestUserSchema = new Schema<IGuestUser>(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     fingerprint: {
       type: String,
@@ -73,7 +74,6 @@ const guestUserSchema = new Schema<IGuestUser>(
 );
 
 // Indexes
-guestUserSchema.index({ guestId: 1 });
 guestUserSchema.index({ fingerprint: 1, lastResetAt: 1 });
 guestUserSchema.index({ isBlocked: 1, blockedUntil: 1 });
 guestUserSchema.index({ lastResetAt: 1 }); // For cleanup cron jobs
