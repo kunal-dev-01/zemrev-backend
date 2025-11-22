@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { connectDB } from "@zemrev/db";
 import { handleUnhandledRejection, handleUncaughtException } from "@zemrev/utils";
+import { scheduleGuestCleanup } from "./jobs/cleanup.job.js";
 import env from "@/config/env.config.js";
 
 handleUncaughtException();
@@ -23,6 +24,7 @@ connectDB().then(() => {
   });
 
   handleUnhandledRejection();
+  scheduleGuestCleanup();
 
   const shutdown = (signal: string) => {
     console.log(`\n🔄 Received ${signal}, shutting down...`);

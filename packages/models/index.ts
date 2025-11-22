@@ -10,4 +10,4 @@ export type { IPayment } from "./payment.model.js";
 export type { IGuestUser } from "./guest.interface.js";
 
 // Constants
-export { CREDIT_PRICING } from "./constants.js";
+export { CREDIT_PRICING,RATE_LIMITS } from "./constants.js";
