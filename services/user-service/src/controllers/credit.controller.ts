@@ -1,46 +1,41 @@
 import { Request, Response } from "express";
-import CreditService from "../services/credit.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
-import "@zemrev/types";
+import CreditService from "../services/credit.service.js";
 
-class CreditController {
-  static getStatus = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    if (req.userType === "anonymous") {
-      throw new AppError("Authentication required", 401);
-    }
+export default class CreditController {
+  // ----------------------------------------------------------
+  // Current balance
+  // ----------------------------------------------------------
+  static status = catchAsync(async (req: Request, res: Response) => {
+    const fp = req.headers["x-fingerprint"] as string;
+    const ip = (req.headers["x-forwarded-for"] as string) || req.ip || "unknown";
 
-    let creditInfo;
+    const info =
+      req.userType === "registered"
+        ? await CreditService.userCredits(req.user!._id)
+        : req.userType === "guest" && fp
+        ? await CreditService.guestCredits(fp, ip)
+        : (() => { throw new AppError("Authentication required", 401); })();
 
-    if (req.userType === "registered" && req.user) {
-      creditInfo = await CreditService.getUserCredits(req.user._id);
-    } else if (req.userType === "guest" && req.guest) {
-      const fingerprint = req.headers["x-fingerprint"] as string;
-      creditInfo = await CreditService.getGuestCredits(fingerprint);
-    }
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        userType: req.userType,
-        credits: creditInfo,
-      },
-    });
+    res.status(200).json({ status: "success", data: info });
   });
 
-  static refundCredits = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { userId, amount } = req.body;
+  // ----------------------------------------------------------
+  // Admin refund
+  // ----------------------------------------------------------
+  static refund = catchAsync(async (req: Request, res: Response) => {
+    const { userId, amount, reason } = req.body;
+    if (!userId || !amount) throw new AppError("userId & amount required", 400);
 
-    if (!userId || !amount) {
-      throw new AppError("Please provide userId and amount", 400);
-    }
+    await CreditService.refund(userId, amount, reason);
+    res.status(200).json({ status: "success", message: `${amount} credits refunded` });
+  });
 
-    await CreditService.refundCredits(userId, amount);
-
-    res.status(200).json({
-      status: "success",
-      message: `Refunded ${amount} credits successfully`,
-    });
+  // ----------------------------------------------------------
+  // Admin stats
+  // ----------------------------------------------------------
+  static stats = catchAsync(async (req: Request, res: Response) => {
+    const data = await CreditService.stats();
+    res.status(200).json({ status: "success", data });
   });
 }
-
-export default CreditController;
