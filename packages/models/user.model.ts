@@ -64,11 +64,11 @@ const userSchema = new Schema<IUser, IUserModel>(
       enum: Object.values(UserRole),
       default: UserRole.USER,
     },
-    
+
     planType: {
       type: String,
       enum: Object.values(PlanType),
-      required: true,
+      default: PlanType.CUSTOM,
     },
     planActive: {
       type: Boolean,
@@ -79,6 +79,7 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: planDetailsSchema,
       required: true,
     },
+
     credits: {
       type: Number,
       default: 0,
@@ -89,25 +90,11 @@ const userSchema = new Schema<IUser, IUserModel>(
       default: 0,
       min: 0,
     },
-    nextCreditReset: {
-      type: Date,
-      default: () => {
-        const tomorrow = new Date();
-        tomorrow.setUTCHours(0, 0, 0, 0);
-        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-        return tomorrow;
-      },
-      index: true,
-    },
-    
+
     stripeCustomerId: {
       type: String,
       sparse: true,
       index: true,
-    },
-    subscriptionId: {
-      type: String,
-      sparse: true,
     },
     subscriptionStatus: {
       type: String,
@@ -117,10 +104,7 @@ const userSchema = new Schema<IUser, IUserModel>(
     planStartedAt: {
       type: Date,
     },
-    planExpiresAt: {
-      type: Date,
-    },
-    
+
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -145,7 +129,7 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: Date,
       select: false,
     },
-    
+
     twoFactorSecret: {
       type: String,
       select: false,
@@ -162,7 +146,7 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: String,
       select: false,
     },
-    
+
     isActive: {
       type: Boolean,
       default: true,
@@ -190,7 +174,7 @@ const userSchema = new Schema<IUser, IUserModel>(
 userSchema.index({ email: 1, role: 1 });
 userSchema.index({ planType: 1, planActive: 1 });
 userSchema.index({ subscriptionStatus: 1 });
-userSchema.index({ registrationFingerprint: 1, nextCreditReset: 1 });
+userSchema.index({ registrationFingerprint: 1 });
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -244,7 +228,7 @@ userSchema.statics.findOrCreateGoogleUser = async function (
     }
 
     const existingEmailUser = await this.findOne({ email: profile.email });
-    
+
     if (existingEmailUser) {
       existingEmailUser.googleId = profile.googleId;
       existingEmailUser.authProvider = AuthProvider.GOOGLE;
@@ -253,7 +237,7 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       return existingEmailUser;
     }
 
-    const basicPlan = getPlanDetails(PlanType.BASIC);
+    const customPlan = getPlanDetails(PlanType.CUSTOM);
 
     const newUser = await this.create({
       googleId: profile.googleId,
@@ -262,9 +246,9 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       fullName: profile.name,
       isActive: true,
       isEmailVerified: true,
-      planType: PlanType.BASIC,
+      planType: PlanType.CUSTOM,
       planActive: false,
-      plan: basicPlan,
+      plan: customPlan,
       credits: 0,
       creditsUsed: 0,
       subscriptionStatus: SubscriptionStatus.INACTIVE,

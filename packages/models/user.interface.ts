@@ -6,9 +6,6 @@ export enum UserRole {
 }
 
 export enum PlanType {
-  BASIC = "basic",
-  PRO = "pro",
-  ELITE = "elite",
   CUSTOM = "custom",
 }
 
@@ -21,19 +18,17 @@ export enum SubscriptionStatus {
   INACTIVE = "inactive",
   ACTIVE = "active",
   CANCELED = "canceled",
-  PAST_DUE = "past_due",
 }
 
-export type PlanPriority = "normal" | "high" | "highest" | "custom";
+export type PlanPriority = "custom";
 
 export interface PlanDetails {
   type: PlanType;
-  dailyCredits: number;
   concurrentJobLimit: number;
   priority: PlanPriority;
   price: number;
   features: string[];
-  perCreditPrice?: number;
+  perCreditPrice: number;
 }
 
 export interface Address {
@@ -55,15 +50,13 @@ export interface SignupData {
   fullName: string;
   email: string;
   password: string;
-  selectedPlan: PlanType;
+  selectedCredits: number;
 }
 
 export interface LoginResponse {
   user: Partial<IUser>;
   accessToken: string;
   refreshToken: string;
-  requires2FA?: boolean;
-  tempToken?: string;
 }
 
 export interface IUserMethods {
@@ -84,37 +77,36 @@ export interface IUser extends Document, IUserMethods {
   phoneNumber?: string;
   address?: Address;
   role: UserRole;
-  
+
   planType: PlanType;
   planActive: boolean;
   plan: PlanDetails;
-  credits: number;
-  creditsUsed: number;
-  nextCreditReset: Date;
+
   
+  credits: number; // Total credits bought
+  creditsUsed: number; // Credits used till now
+
   stripeCustomerId?: string;
-  subscriptionId?: string;
   subscriptionStatus: SubscriptionStatus;
   planStartedAt?: Date;
-  planExpiresAt?: Date;
-  
+
   isEmailVerified: boolean;
-  emailVerificationToken?: string | undefined;
-  emailVerificationExpires?: Date | undefined;
-  passwordResetToken?: string | undefined;
-  passwordResetExpires?: Date | undefined;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   passwordChangedAt?: Date;
-  
-  twoFactorSecret?: string | undefined;
+
+  twoFactorSecret?: string;
   twoFactorEnabled: boolean;
-  twoFactorBackupCodes?: string[] | undefined;
+  twoFactorBackupCodes?: string[];
   superKey?: string;
-  
+
   isActive: boolean;
   isBlocked: boolean;
   blockedReason?: string;
   registrationFingerprint?: string;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -126,11 +118,6 @@ export const planDetailsSchema = new Schema<PlanDetails>(
       enum: Object.values(PlanType),
       required: true,
     },
-    dailyCredits: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     concurrentJobLimit: {
       type: Number,
       required: true,
@@ -138,13 +125,13 @@ export const planDetailsSchema = new Schema<PlanDetails>(
     },
     priority: {
       type: String,
-      enum: ["normal", "high", "highest", "custom"],
+      enum: ["custom"],
       required: true,
     },
     price: {
       type: Number,
       required: true,
-      min: 0,
+      default: 0,
     },
     features: {
       type: [String],
@@ -152,7 +139,8 @@ export const planDetailsSchema = new Schema<PlanDetails>(
     },
     perCreditPrice: {
       type: Number,
-      min: 0,
+      required: true,
+      default: 0.002,
     },
   },
   { _id: false }

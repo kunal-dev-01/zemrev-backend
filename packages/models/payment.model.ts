@@ -1,5 +1,4 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { PlanType } from "./user.interface.js";
 
 export enum PaymentStatus {
   PENDING = "pending",
@@ -10,17 +9,14 @@ export enum PaymentStatus {
 
 export enum PaymentMethod {
   CARD = "card",
-  BANK_TRANSFER = "bank_transfer",
-  OTHER = "other",
 }
 
 export interface IPayment extends Document {
   userId: mongoose.Types.ObjectId;
   stripePaymentId: string;
-  stripeInvoiceId?: string;
   amount: number;
   currency: string;
-  planType: PlanType;
+  credits: number;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   metadata?: Record<string, any>;
@@ -45,10 +41,6 @@ const paymentSchema = new Schema<IPayment>(
       unique: true,
       index: true,
     },
-    stripeInvoiceId: {
-      type: String,
-      index: true,
-    },
     amount: {
       type: Number,
       required: true,
@@ -60,11 +52,10 @@ const paymentSchema = new Schema<IPayment>(
       default: "usd",
       uppercase: true,
     },
-    planType: {
-      type: String,
-      enum: Object.values(PlanType),
+    credits: {
+      type: Number,
       required: true,
-      index: true,
+      min: 1000,
     },
     paymentStatus: {
       type: String,
@@ -76,6 +67,7 @@ const paymentSchema = new Schema<IPayment>(
     paymentMethod: {
       type: String,
       enum: Object.values(PaymentMethod),
+      default: PaymentMethod.CARD,
       required: true,
     },
     metadata: {
@@ -98,6 +90,6 @@ const paymentSchema = new Schema<IPayment>(
 
 paymentSchema.index({ userId: 1, createdAt: -1 });
 paymentSchema.index({ userId: 1, paymentStatus: 1 });
-paymentSchema.index({ planType: 1, paymentStatus: 1 });
+paymentSchema.index({ paymentStatus: 1 });
 
 export const Payment = mongoose.model<IPayment>("Payment", paymentSchema);
