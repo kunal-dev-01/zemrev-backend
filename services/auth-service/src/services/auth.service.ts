@@ -1,11 +1,9 @@
 import {
   User,
   GuestUser,
-  PlanType,
   UserRole,
-  SubscriptionStatus,
   SignupData,
-  getPlanDetails,
+  CREDIT_PRICING,
 } from "@zemrev/models";
 import env from "@/config/env.config.js";
 import { AppError, JWTService,EmailProducer } from "@zemrev/utils";
@@ -19,24 +17,25 @@ class AuthService {
   static async signup(
     data: SignupData & { fingerprint?: string }
   ): Promise<any> {
-    const { email, selectedPlan, fingerprint } = data;
+    const { email, creditsRequested, fingerprint } = data;
 
+    // Validate email
     const existingUser = await User.findOne({ email });
     if (existingUser) throw new AppError("Email already registered", 400);
 
-    if (!selectedPlan) throw new AppError("Please select a plan", 400);
-    if (!Object.values(PlanType).includes(selectedPlan)) {
-      throw new AppError("Invalid plan selection", 400);
+    // Validate credit purchase
+    if (!creditsRequested || typeof creditsRequested !== "number") {
+      throw new AppError("Please specify how many credits to purchase", 400);
     }
 
-    const planDetails = getPlanDetails(selectedPlan);
+    if (creditsRequested < CREDIT_PRICING.MINIMUM_PURCHASE) {
+      throw new AppError(
+        `Minimum purchase is ${CREDIT_PRICING.MINIMUM_PURCHASE} credits`,
+        400
+      );
+    }
 
-    // Next Credit Reset = Tomorrow 00:00 UTC
-    const nextReset = new Date();
-    nextReset.setUTCHours(0, 0, 0, 0);
-    nextReset.setUTCDate(nextReset.getUTCDate() + 1);
-
-    /** Prevent multiple accounts from same device per day */
+    // Prevent abuse: Check if guest was already converted today
     if (fingerprint) {
       const guestUser = await GuestUser.findOne({
         fingerprint,
@@ -52,40 +51,33 @@ class AuthService {
           today.getUTCMonth() === converted.getUTCMonth() &&
           today.getUTCDate() === converted.getUTCDate();
 
-        if (sameDay)
+        if (sameDay) {
           throw new AppError(
             "This device already created an account today. Please login.",
             403
           );
+        }
       }
     }
-
-    const requiresPayment = selectedPlan !== PlanType.CUSTOM;
-
-    /** CREATE USER */
+ 
+    /** CREATE USER (status = "inactive", credits = 0) */
     const user = await User.create({
       fullName: data.fullName,
       email,
       password: data.password,
-      planType: selectedPlan,
-      plan: planDetails,
-      planActive: false,
       credits: 0,
-      creditsUsed: 0,
-      nextCreditReset: nextReset,
-      subscriptionStatus: SubscriptionStatus.INACTIVE,
+      status: "inactive",
       role: UserRole.USER,
-      registrationFingerprint: fingerprint,
     });
 
-    /** Update guest record */
+    /** Update guest record if fingerprint exists */
     if (fingerprint) {
       await GuestUser.findOneAndUpdate(
         { fingerprint, isConverted: false },
         {
           isConverted: true,
           convertedAt: new Date(),
-          convertedToEmail: email,
+          convertedToUserId: user._id,
         }
       );
     }
@@ -118,9 +110,10 @@ class AuthService {
       user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      requiresPayment,
+      requiresPayment: true,
+      creditsRequested,
     };
-  }
+  }    
 
   /**-------------------------------
    * LOGIN
