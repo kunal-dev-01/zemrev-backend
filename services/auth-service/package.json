@@ -24,6 +24,7 @@
     "google-auth-library": "^9.4.1",
     "axios": "^1.6.2",
     "dotenv": "^16.3.1",
+    "stripe": "^14.11.0",
     "@zemrev/models": "workspace:*",
     "@zemrev/db": "workspace:*",
     "@zemrev/utils": "workspace:*",
