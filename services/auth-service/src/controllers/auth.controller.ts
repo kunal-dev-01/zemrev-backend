@@ -5,7 +5,6 @@ import { catchAsync, AppError } from "@zemrev/utils";
 import env from "@/config/env.config.js";
 
 class AuthController {
-  // Cookie settings for refresh token
   private static readonly COOKIE_OPTIONS = {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
@@ -18,7 +17,7 @@ class AuthController {
   }
 
   /**---------------------------
-   * Signup
+   * ✅ SIGNUP (With fingerprint validation)
    * ---------------------------*/
   static signup = catchAsync(async (req: Request, res: Response) => {
     const { fullName, email, password } = req.body;
@@ -45,13 +44,12 @@ class AuthController {
         user: result.user,
         accessToken: result.accessToken,
         requiresPayment: result.requiresPayment,
-        creditsRequested: result.creditsRequested,
       },
     });
   });
 
   /**---------------------------
-   * Login
+   * ✅ LOGIN
    * ---------------------------*/
   static login = catchAsync(async (req: Request, res: Response) => {
     const { email, password } = req.body;
@@ -60,13 +58,13 @@ class AuthController {
     const deviceInfo = req.headers["user-agent"] ?? "unknown";
     const result = await AuthService.login(email, password, deviceInfo);
 
-    // If user has 2FA enabled → request verification
     if (result.requires2FA) {
       res.status(200).json({
         status: "success",
         message: "2FA verification needed",
         data: { requires2FA: true, tempToken: result.tempToken },
       });
+      return;
     }
 
     this.setRefreshCookie(res, result.refreshToken);
@@ -78,9 +76,9 @@ class AuthController {
     });
   });
 
-  /** ---------------------------
-   * Verify 2FA Login
-   * --------------------------- */
+  /**---------------------------
+   * ✅ VERIFY 2FA
+   * ---------------------------*/
   static verify2FA = catchAsync(async (req: Request, res: Response) => {
     const { tempToken, totpCode, superKey, isBackupCode } = req.body;
     if (!tempToken || !totpCode) throw new AppError("Missing 2FA details", 400);
@@ -102,25 +100,43 @@ class AuthController {
   });
 
   /**---------------------------
-   * Google OAuth
+   * ✅ GOOGLE AUTH (With fingerprint)
    * ---------------------------*/
-  static googleAuth = catchAsync(async (_req: Request, res: Response) => {
-    res.redirect(googleService.getGoogleAuthURL());
-  });
-
-  static googleCallback = catchAsync(async (req: Request, res: Response) => {
-    const { code } = req.query as any;
-    if (!code) throw new AppError("Authorization code missing", 400);
-
-    const result = await googleService.handleGoogleCallback(code);
-
-    this.setRefreshCookie(res, result.refreshToken);
-
-    res.redirect(`${env.CLIENT_URL}/auth/callback?token=${result.accessToken}`);
+  static googleAuth = catchAsync(async (req: Request, res: Response) => {
+    const fingerprint = req.headers["x-fingerprint"] as string;
+    const authUrl = googleService.getGoogleAuthURL(fingerprint);
+    res.redirect(authUrl);
   });
 
   /**---------------------------
-   * Refresh Token
+   * ✅ GOOGLE CALLBACK (With state validation)
+   * ---------------------------*/
+  static googleCallback = catchAsync(async (req: Request, res: Response) => {
+    const { code, state } = req.query as any;
+    
+    if (!code) throw new AppError("Authorization code missing", 400);
+    if (!state) throw new AppError("State token missing", 400);
+
+    const fingerprint = req.headers["x-fingerprint"] as string;
+
+    const result = await googleService.handleGoogleCallback(
+      code, 
+      state,
+      fingerprint
+    );
+
+    this.setRefreshCookie(res, result.refreshToken);
+
+    // ✅ REDIRECT WITH TOKEN
+    const redirectUrl = result.requiresPayment
+      ? `${env.CLIENT_URL}/auth/payment-required?token=${result.accessToken}`
+      : `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}`;
+
+    res.redirect(redirectUrl);
+  });
+
+  /**---------------------------
+   * ✅ REFRESH TOKEN
    * ---------------------------*/
   static refreshToken = catchAsync(async (req: Request, res: Response) => {
     const refreshToken = req.cookies.refreshToken;
@@ -135,7 +151,7 @@ class AuthController {
   });
 
   /**---------------------------
-   * Logout
+   * ✅ LOGOUT
    * ---------------------------*/
   static logout = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
@@ -158,7 +174,6 @@ class AuthController {
 
     res.status(200).json({ status: "success", message: "Logged out from all devices" });
   });
-
 }
 
 export default AuthController;

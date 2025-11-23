@@ -47,7 +47,10 @@ export interface IUserMethods {
 }
 
 export interface IUserModel extends Model<IUser, {}, IUserMethods> {
-  findOrCreateGoogleUser(profile: GoogleProfile): Promise<IUser>;
+  findOrCreateGoogleUser(
+    profile: GoogleProfile,
+    fingerprint?: string
+  ): Promise<IUser>;
 }
 
 export interface IUser extends Document, IUserMethods {
@@ -58,33 +61,22 @@ export interface IUser extends Document, IUserMethods {
   password?: string;
   address?: Address;
   role: UserRole;
-  
-  // 💳 CREDITS SYSTEM
   credits: number;
   status: UserStatus;
-  
-  // 💰 STRIPE
   stripeCustomerId?: string;
-  
-  // 🔐 AUTHENTICATION
   isEmailVerified: boolean;
   emailVerificationToken?: string | undefined;
   emailVerificationExpires?: Date | undefined;
   passwordResetToken?: string | undefined;
   passwordResetExpires?: Date | undefined;
   passwordChangedAt?: Date;
-  
-  // 🔒 TWO-FACTOR AUTH
   twoFactorSecret?: string;
   twoFactorEnabled: boolean;
   twoFactorBackupCodes?: string[];
   superKey?: string;
-  
-  // 🚫 ACCOUNT STATUS
   isActive: boolean;
   isBlocked: boolean;
   blockedReason?: string;
-  
   createdAt: Date;
   updatedAt: Date;
 }

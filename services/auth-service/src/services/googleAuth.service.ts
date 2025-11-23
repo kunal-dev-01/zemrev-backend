@@ -1,9 +1,12 @@
 import { OAuth2Client } from "google-auth-library";
 import axios from "axios";
+import crypto from "crypto";
 import env from "@/config/env.config.js";
 import { User } from "@zemrev/models";
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
+import AbuseDetectionService from "./abuseDetection.service.js";
+
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
 
@@ -32,11 +35,20 @@ class GoogleAuthService {
   }
 
   /**
-   * ---------------------------------------------------------
-   * Generate the Google OAuth URL for frontend
-   * ---------------------------------------------------------
+   * ✅ GENERATE GOOGLE AUTH URL WITH STATE (CSRF + FINGERPRINT)
    */
-  getGoogleAuthURL(): string {
+  getGoogleAuthURL(fingerprint?: string): string {
+    // ✅ GENERATE STATE TOKEN (CSRF protection + fingerprint binding)
+    const state = crypto.randomBytes(32).toString("hex");
+    const stateData = {
+      token: state,
+      fingerprint: fingerprint || null,
+      timestamp: Date.now()
+    };
+
+    // ✅ STORE STATE IN REDIS (5 min expiry)
+    redisService.storeOAuthState(state, stateData);
+
     const params = new URLSearchParams({
       redirect_uri: env.GOOGLE_REDIRECT_URI,
       client_id: env.GOOGLE_CLIENT_ID,
@@ -44,34 +56,65 @@ class GoogleAuthService {
       response_type: "code",
       prompt: "consent",
       scope: GOOGLE_SCOPES.join(" "),
+      state: state, // ✅ CSRF protection
     });
 
     return `${GOOGLE_AUTH_URL}?${params.toString()}`;
   }
 
   /**
-   * ---------------------------------------------------------
-   * Handle Google OAuth callback
-   * ---------------------------------------------------------
+   * ✅ HANDLE GOOGLE CALLBACK WITH STATE VALIDATION
    */
-  async handleGoogleCallback(code: string) {
+  async handleGoogleCallback(
+    code: string, 
+    state: string,
+    fingerprint?: string
+  ) {
     try {
+      // ✅ VALIDATE STATE TOKEN (CSRF + Fingerprint)
+      const stateData = await redisService.getOAuthState(state);
+      if (!stateData) {
+        throw new AppError("Invalid or expired state token", 401);
+      }
+
+      // ✅ VERIFY FINGERPRINT MATCHES (Prevent token hijacking)
+      if (stateData.fingerprint && fingerprint !== stateData.fingerprint) {
+        console.log(`⚠️ Fingerprint mismatch: ${stateData.fingerprint} vs ${fingerprint}`);
+        throw new AppError("Security validation failed", 403);
+      }
+
+      // ✅ CHECK ONE-ACCOUNT-PER-DAY RULE
+      if (fingerprint) {
+        await AbuseDetectionService.multiAccount(fingerprint);
+      }
+
+      // ✅ DELETE STATE TOKEN (Single use)
+      await redisService.deleteOAuthState(state);
+
+      // ✅ EXCHANGE CODE FOR TOKENS
       const { tokens } = await this.client.getToken(code);
 
-      if (!tokens.access_token)
+      if (!tokens.access_token) {
         throw new AppError("Failed to obtain Google access token", 401);
+      }
 
       this.client.setCredentials(tokens);
 
+      // ✅ GET USER INFO
       const googleUser = await this.getGoogleUserInfo(tokens.access_token);
 
-      const user = await User.findOrCreateGoogleUser({
-        googleId: googleUser.id,
-        email: googleUser.email,
-        name: googleUser.name ?? "",
-        avatar: googleUser.picture ?? "",
-      });
+      // ✅ FIND OR CREATE USER (with fingerprint tracking)
+      const user = await User.findOrCreateGoogleUser(
+        {
+          googleId: googleUser.id,
+          email: googleUser.email,
+          name: googleUser.name ?? "",
+          avatar: googleUser.picture ?? "",
+        },
+        fingerprint
+      );
 
+      // ✅ GENERATE JWT TOKENS
       const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
@@ -87,18 +130,17 @@ class GoogleAuthService {
         user: this.formatUser(user),
         accessToken: jwtTokens.accessToken,
         refreshToken: jwtTokens.refreshToken,
-        requiresPayment: false,
+        requiresPayment: user.status === "inactive",
       };
     } catch (error) {
       console.error("❌ Google OAuth Error:", error);
+      if (error instanceof AppError) throw error;
       throw new AppError("Google authentication failed", 401);
     }
   }
 
   /**
-   * ---------------------------------------------------------
-   * Fetch Google User Info
-   * ---------------------------------------------------------
+   * ✅ FETCH GOOGLE USER INFO
    */
   private async getGoogleUserInfo(
     accessToken: string
@@ -108,8 +150,9 @@ class GoogleAuthService {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      if (!data.id || !data.email)
+      if (!data.id || !data.email) {
         throw new AppError("Invalid Google user data", 400);
+      }
 
       return data;
     } catch (error) {
@@ -119,9 +162,7 @@ class GoogleAuthService {
   }
 
   /**
-   * ---------------------------------------------------------
-   * Format user response (DRY)
-   * ---------------------------------------------------------
+   * ✅ FORMAT USER RESPONSE
    */
   private formatUser(user: any) {
     return {

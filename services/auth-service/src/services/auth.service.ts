@@ -5,49 +5,30 @@ import {
   SignupData
 } from "@zemrev/models";
 import env from "@/config/env.config.js";
-import { AppError, JWTService,EmailProducer } from "@zemrev/utils";
+import { AppError, JWTService, EmailProducer } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
 import TwoFactorService from "./twoFactor.service.js";
+import AbuseDetectionService from "./abuseDetection.service.js";
 
 class AuthService {
-  /** -------------------------------
-   * USER SIGNUP
+  /**-------------------------------
+   * ✅ USER SIGNUP (With abuse prevention)
    * -------------------------------*/
   static async signup(
     data: SignupData & { fingerprint?: string }
   ): Promise<any> {
     const { email, fingerprint } = data;
 
-    // Validate email
+    // ✅ VALIDATE EMAIL
     const existingUser = await User.findOne({ email });
     if (existingUser) throw new AppError("Email already registered", 400);
 
-    // Prevent abuse: Check if guest was already converted today
+    // ✅ PREVENT MULTI-ACCOUNT ABUSE (One device per day)
     if (fingerprint) {
-      const guestUser = await GuestUser.findOne({
-        fingerprint,
-        isConverted: true,
-      });
-
-      if (guestUser?.convertedAt) {
-        const today = new Date();
-        const converted = new Date(guestUser.convertedAt);
-
-        const sameDay =
-          today.getUTCFullYear() === converted.getUTCFullYear() &&
-          today.getUTCMonth() === converted.getUTCMonth() &&
-          today.getUTCDate() === converted.getUTCDate();
-
-        if (sameDay) {
-          throw new AppError(
-            "This device already created an account today. Please login.",
-            403
-          );
-        }
-      }
+      await AbuseDetectionService.multiAccount(fingerprint);
     }
  
-    /** CREATE USER (status = "inactive", credits = 0) */
+    // ✅ CREATE USER (status = "inactive", credits = 0)
     const user = await User.create({
       fullName: data.fullName,
       email,
@@ -57,7 +38,7 @@ class AuthService {
       role: UserRole.USER,
     });
 
-    /** Update guest record if fingerprint exists */
+    // ✅ MARK GUEST AS CONVERTED (if fingerprint exists)
     if (fingerprint) {
       await GuestUser.findOneAndUpdate(
         { fingerprint, isConverted: false },
@@ -69,7 +50,7 @@ class AuthService {
       );
     }
 
-    /** EMAIL VERIFICATION TOKEN */
+    // ✅ EMAIL VERIFICATION TOKEN
     const token = JWTService.generateEmailVerificationToken();
     user.emailVerificationToken = JWTService.hashToken(token);
     user.emailVerificationExpires = new Date(Date.now() + 86400000);
@@ -84,7 +65,7 @@ class AuthService {
       "Zemrev"
     );
 
-    /** LOGIN TOKENS */
+    // ✅ LOGIN TOKENS
     const tokens = JWTService.generateTokenPair({
       userId: user.id,
       email: user.email,
@@ -97,11 +78,12 @@ class AuthService {
       user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      requiresPayment: true, // ✅ Always requires payment for new users
     };
   }    
 
   /**-------------------------------
-   * LOGIN
+   * ✅ LOGIN
    * -------------------------------*/
   static async login(
     email: string,
@@ -120,7 +102,7 @@ class AuthService {
       throw new AppError(`Account blocked: ${user.blockedReason}`, 403);
     }
 
-    /** 2FA LOGIN FLOW */
+    // ✅ 2FA LOGIN FLOW
     if (user.twoFactorEnabled) {
       const tempToken = JWTService.generateEmailVerificationToken();
       await redisService.store2FAToken(user.id, tempToken);
@@ -132,7 +114,7 @@ class AuthService {
       };
     }
 
-    /** NORMAL LOGIN */
+    // ✅ NORMAL LOGIN
     const tokens = JWTService.generateTokenPair({
       userId: user.id,
       email: user.email,
@@ -149,7 +131,7 @@ class AuthService {
   }
 
   /**-------------------------------
-   * VERIFY 2FA LOGIN
+   * ✅ VERIFY 2FA LOGIN
    * -------------------------------*/
   static async verify2FA(
     tempToken: string,
@@ -167,7 +149,6 @@ class AuthService {
       throw new AppError("Invalid super key", 401);
     }
 
-    /** Verify TOTP or Backup Code */
     await redisService.verify2FAToken(userId, tempToken);
 
     const verified = await TwoFactorService.verify2FALogin(
@@ -180,7 +161,6 @@ class AuthService {
 
     await redisService.delete2FAToken(userId);
 
-    /** NEW TOKEN PAIR */
     const tokens = JWTService.generateTokenPair({
       userId,
       email: user.email,
@@ -197,7 +177,7 @@ class AuthService {
   }
 
   /**-------------------------------
-   * REFRESH TOKEN
+   * ✅ REFRESH TOKEN
    * -------------------------------*/
   static async refreshAccessToken(refreshToken: string): Promise<string> {
     const decoded = JWTService.verifyRefreshToken(refreshToken);
@@ -220,7 +200,7 @@ class AuthService {
   }
 
   /**-------------------------------
-   * LOGOUT
+   * ✅ LOGOUT
    * -------------------------------*/
   static async logout(userId: string, refreshToken: string) {
     await redisService.deleteRefreshToken(userId, refreshToken);

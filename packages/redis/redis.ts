@@ -4,8 +4,9 @@ class RedisService {
   private client: RedisClientType;
 
   // Expiries (seconds)
-  private readonly REFRESH_TOKEN_EXPIRY = 7 * 24 * 60 * 60;
-  private readonly TWO_FA_TEMP_EXPIRY = 300;
+  private readonly REFRESH_TOKEN_EXPIRY = 7 * 24 * 60 * 60; // 7 days
+  private readonly TWO_FA_TEMP_EXPIRY = 300; // 5 minutes
+  private readonly OAUTH_STATE_EXPIRY = 300; // 5 minutes
 
   constructor() {
     this.client = createClient({
@@ -37,6 +38,10 @@ class RedisService {
 
   private twofaLookupKey(token: string) {
     return `2fa_lookup:${token}`;
+  }
+
+  private oauthStateKey(state: string) {
+    return `oauth:state:${state}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -131,6 +136,28 @@ class RedisService {
     if (token) {
       await this.client.del(this.twofaLookupKey(token));
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ OAUTH STATE TOKEN (Google OAuth CSRF Protection)
+  // ---------------------------------------------------------------------------
+
+  async storeOAuthState(state: string, data: any): Promise<void> {
+    const key = this.oauthStateKey(state);
+    await this.client.set(key, JSON.stringify(data), {
+      EX: this.OAUTH_STATE_EXPIRY,
+    });
+  }
+
+  async getOAuthState(state: string): Promise<any | null> {
+    const key = this.oauthStateKey(state);
+    const data = await this.client.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async deleteOAuthState(state: string): Promise<void> {
+    const key = this.oauthStateKey(state);
+    await this.client.del(key);
   }
 
   // ---------------------------------------------------------------------------

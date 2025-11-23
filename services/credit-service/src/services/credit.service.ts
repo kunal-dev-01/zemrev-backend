@@ -4,109 +4,301 @@ import crypto from "crypto";
 
 export default class CreditService {
   // ----------------------------------------------------------
-  // Helpers
+  // HELPER: Get start of today (UTC)
   // ----------------------------------------------------------
-  private static async guest(fingerprint: string, ip: string) {
-    let g = await GuestUser.findOne({ fingerprint });
-    if (!g) {
-      g = await GuestUser.create({
-        guestId: crypto.randomBytes(16).toString("hex"),
-        fingerprint,
-        ipAddress: ip,
-        dailyCreditsUsed: 0,
-        lastResetAt: new Date(),
-      });
-      console.log(`🆕 guest=${g.guestId}`);
-    }
-    return g;
-  }
-
-  private static async resetIfNewDay(g: any) {
+  private static getStartOfToday(): Date {
     const now = new Date();
-    const last = new Date(g.lastResetAt);
-    const sameDay =
-      now.getUTCFullYear() === last.getUTCFullYear() &&
-      now.getUTCMonth() === last.getUTCMonth() &&
-      now.getUTCDate() === last.getUTCDate();
-
-    if (!sameDay) {
-      g.dailyCreditsUsed = 0;
-      g.requestCount = 0;
-      g.lastResetAt = now;
-      await g.save();
-      console.log(`✅ reset guest=${g.guestId}`);
-    }
+    now.setUTCHours(0, 0, 0, 0);
+    return now;
   }
 
   // ----------------------------------------------------------
-  // Queries
+  // QUERIES (Read-only)
   // ----------------------------------------------------------
   static async userCredits(userId: string) {
     const u = await User.findById(userId).lean();
     if (!u) throw new AppError("User not found", 404);
-    return { total: u.credits, used: 0, remaining: u.credits, status: u.status };
+    return { 
+      total: u.credits, 
+      used: 0, 
+      remaining: u.credits, 
+      status: u.status 
+    };
   }
 
   static async guestCredits(fp: string, ip: string) {
-    const g = await this.guest(fp, ip);
-    await this.resetIfNewDay(g);
+    const startOfToday = this.getStartOfToday();
+
+    // ✅ ATOMIC: findOneAndUpdate with upsert + conditional reset
+    const g = await GuestUser.findOneAndUpdate(
+      { fingerprint: fp },
+      [
+        {
+          $set: {
+            guestId: {
+              $cond: {
+                if: { $not: ["$guestId"] },
+                then: crypto.randomBytes(16).toString("hex"),
+                else: "$guestId"
+              }
+            },
+            ipAddress: ip,
+            // ✅ RESET ONLY IF NEW DAY (no extra write)
+            dailyCreditsUsed: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: 0,
+                else: "$dailyCreditsUsed"
+              }
+            },
+            requestCount: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: 0,
+                else: "$requestCount"
+              }
+            },
+            lastResetAt: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: startOfToday,
+                else: "$lastResetAt"
+              }
+            },
+            // ✅ UNBLOCK IF TIME SERVED
+            isBlocked: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: false,
+                else: { $ifNull: ["$isBlocked", false] }
+              }
+            },
+            blockedUntil: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: null,
+                else: "$blockedUntil"
+              }
+            },
+            blockedReason: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: null,
+                else: "$blockedReason"
+              }
+            }
+          }
+        }
+      ],
+      { 
+        upsert: true, 
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
     const used = g.dailyCreditsUsed;
     const rem = Math.max(0, CREDIT_PRICING.GUEST_DAILY_LIMIT - used);
-    return { total: CREDIT_PRICING.GUEST_DAILY_LIMIT, used, remaining: rem, resetAt: g.lastResetAt };
+    
+    return { 
+      total: CREDIT_PRICING.GUEST_DAILY_LIMIT, 
+      used, 
+      remaining: rem, 
+      resetAt: g.lastResetAt 
+    };
   }
 
   // ----------------------------------------------------------
-  // Deduction
+  // DEDUCTION (Atomic)
   // ----------------------------------------------------------
   static async deductUser(userId: string, cost: number) {
-    const u = await User.findById(userId);
-    if (!u) throw new AppError("User not found", 404);
-    if (u.status !== "active") throw new AppError("Account inactive", 403);
-    if (u.credits < cost)
-      throw new AppError(`Need ${cost}, have ${u.credits}`, 429);
+    // ✅ ATOMIC: Single operation with validation
+    const result = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        status: "active",
+        isActive: true,
+        isBlocked: false,
+        $expr: { $gte: ["$credits", cost] }
+      },
+      { $inc: { credits: -cost } },
+      { new: true }
+    );
 
-    const res = await User.findByIdAndUpdate(userId, { $inc: { credits: -cost } }, { new: true });
-    console.log(`💳 ${u.email} -${cost}  ➜  ${res!.credits}`);
+    if (!result) {
+      const u = await User.findById(userId).lean();
+      if (!u) throw new AppError("User not found", 404);
+      if (u.status !== "active") throw new AppError("Account inactive", 403);
+      if (u.isBlocked) throw new AppError("Account blocked", 403);
+      if (u.credits < cost) throw new AppError(`Need ${cost}, have ${u.credits}`, 429);
+      throw new AppError("Deduction failed", 500);
+    }
+
+    console.log(`💳 ${result.email} -${cost} ➜ ${result.credits}`);
   }
 
   static async deductGuest(fp: string, ip: string, cost: number) {
-    const g = await this.guest(fp, ip);
+    const startOfToday = this.getStartOfToday();
 
-    // unblock if time served
-    if (g.isBlocked && g.blockedUntil && new Date() >= g.blockedUntil) {
-      g.isBlocked = false;
-      g.blockedUntil = undefined;
-      g.blockedReason = undefined;
-      g.requestCount = 0;
+    // ✅ ATOMIC: Single operation with all checks + reset + deduction
+    const result = await GuestUser.findOneAndUpdate(
+      {
+        fingerprint: fp,
+        $or: [
+          { isBlocked: false },
+          { 
+            isBlocked: true, 
+            blockedUntil: { $lte: new Date() } 
+          }
+        ],
+        $expr: {
+          $lte: [
+            {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: cost,
+                else: { 
+                  $add: [
+                    "$dailyCreditsUsed", 
+                    cost
+                  ] 
+                }
+              }
+            },
+            CREDIT_PRICING.GUEST_DAILY_LIMIT
+          ]
+        }
+      },
+      [
+        {
+          $set: {
+            ipAddress: ip,
+            // ✅ RESET IF NEW DAY
+            dailyCreditsUsed: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: cost,
+                else: { $add: ["$dailyCreditsUsed", cost] }
+              }
+            },
+            requestCount: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: 1,
+                else: { $add: ["$requestCount", 1] }
+              }
+            },
+            lastResetAt: {
+              $cond: {
+                if: { $lt: ["$lastResetAt", startOfToday] },
+                then: startOfToday,
+                else: "$lastResetAt"
+              }
+            },
+            lastRequestTime: new Date(),
+            // ✅ UNBLOCK IF TIME SERVED
+            isBlocked: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: false,
+                else: "$isBlocked"
+              }
+            },
+            blockedUntil: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: null,
+                else: "$blockedUntil"
+              }
+            },
+            blockedReason: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isBlocked",
+                    { $gte: [new Date(), "$blockedUntil"] }
+                  ]
+                },
+                then: null,
+                else: "$blockedReason"
+              }
+            }
+          }
+        }
+      ],
+      { new: true }
+    );
+
+    if (!result) {
+      const g = await GuestUser.findOne({ fingerprint: fp }).lean();
+      
+      if (!g) throw new AppError("Guest not found", 404);
+      
+      if (g.isBlocked && (!g.blockedUntil || new Date() < g.blockedUntil)) {
+        throw new AppError(
+          `Blocked until ${g.blockedUntil!.toISOString()}`, 
+          403
+        );
+      }
+
+      const isNewDay = g.lastResetAt < startOfToday;
+      const used = isNewDay ? 0 : g.dailyCreditsUsed;
+      const remaining = CREDIT_PRICING.GUEST_DAILY_LIMIT - used;
+
+      if (remaining < cost) {
+        throw new AppError(
+          `Daily limit exhausted ${used}/${CREDIT_PRICING.GUEST_DAILY_LIMIT}`, 
+          429
+        );
+      }
+
+      throw new AppError("Deduction failed", 500);
     }
 
-    if (g.isBlocked)
-      throw new AppError(`Blocked until ${g.blockedUntil!.toISOString()}`, 403);
-
-    await this.resetIfNewDay(g);
-
-    const rem = CREDIT_PRICING.GUEST_DAILY_LIMIT - g.dailyCreditsUsed;
-    if (rem < cost)
-      throw new AppError(`Daily limit exhausted  ${g.dailyCreditsUsed}/${CREDIT_PRICING.GUEST_DAILY_LIMIT}`, 429);
-
-    g.dailyCreditsUsed += cost;
-    g.requestCount += 1;
-    g.lastRequestTime = new Date();
-    await g.save();
-
-    console.log(`👤 guest=${g.guestId} -${cost}  ➜  ${rem - cost}`);
+    const rem = CREDIT_PRICING.GUEST_DAILY_LIMIT - result.dailyCreditsUsed;
+    console.log(`👤 guest=${result.guestId} -${cost} ➜ ${rem}`);
   }
 
   // ----------------------------------------------------------
-  // Admin utils
+  // ADMIN UTILS
   // ----------------------------------------------------------
   static async refund(userId: string, amount: number, reason?: string) {
     if (amount <= 0) throw new AppError("Amount > 0 required", 400);
-    const u = await User.findById(userId);
+    
+    const u = await User.findByIdAndUpdate(
+      userId,
+      { $inc: { credits: amount } },
+      { new: true }
+    );
+
     if (!u) throw new AppError("User not found", 404);
-    u.credits += amount;
-    await u.save();
-    console.log(`🔄 ${u.email} +${amount}  reason=${reason ?? "-"}`);
+    
+    console.log(`🔄 ${u.email} +${amount} reason=${reason ?? "-"}`);
   }
 
   static async stats() {
@@ -134,6 +326,9 @@ export default class CreditService {
       ]),
     ]);
 
-    return { users: u[0] || { total: 0, active: 0, credits: 0, avg: 0 }, guests: g[0] || { total: 0, active: 0, used: 0 } };
+    return { 
+      users: u[0] || { total: 0, active: 0, credits: 0, avg: 0 }, 
+      guests: g[0] || { total: 0, active: 0, used: 0 } 
+    };
   }
 }
