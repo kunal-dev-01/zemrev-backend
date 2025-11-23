@@ -5,7 +5,7 @@ import env from "@/config/env.config.js";
 import { User } from "@zemrev/models";
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
-import AbuseDetectionService from "./abuseDetection.service.js";
+import {AbuseDetectionService} from "@zemrev/config";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
