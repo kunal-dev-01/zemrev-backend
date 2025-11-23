@@ -24,7 +24,8 @@
     "@zemrev/models": "workspace:*",
     "@zemrev/db": "workspace:*",
     "@zemrev/utils": "workspace:*",
-    "@zemrev/types": "workspace:*"
+    "@zemrev/types": "workspace:*",
+    "@zemrev/config": "workspace:*"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.9",

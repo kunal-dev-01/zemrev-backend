@@ -27,6 +27,22 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/config:
+    dependencies:
+      '@zemrev/models':
+        specifier: workspace:*
+        version: link:../models
+      '@zemrev/utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.25
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   packages/db:
     dependencies:
       mongoose:
@@ -112,6 +128,9 @@ importers:
 
   services/auth-service:
     dependencies:
+      '@zemrev/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@zemrev/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -206,6 +225,9 @@ importers:
 
   services/credit-service:
     dependencies:
+      '@zemrev/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@zemrev/db':
         specifier: workspace:*
         version: link:../../packages/db
