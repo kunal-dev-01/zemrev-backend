@@ -1,46 +1,78 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
+RUN npm install -g pnpm
 
+# Dependencies stage
+FROM base AS deps
 WORKDIR /app
+COPY pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml package.json ./
 
-# Copy root files for workspace
-COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+COPY packages/config/package.json ./packages/config/
+COPY packages/db/package.json ./packages/db/
+COPY packages/models/package.json ./packages/models/
+COPY packages/redis/package.json ./packages/redis/
+COPY packages/types/package.json ./packages/types/
+COPY packages/utils/package.json ./packages/utils/
 
-# Copy all service package.json files
 COPY services/api-gateway/package.json ./services/api-gateway/
 COPY services/auth-service/package.json ./services/auth-service/
 COPY services/credit-service/package.json ./services/credit-service/
 COPY services/user-service/package.json ./services/user-service/
 
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
-# Copy source code
+# Builder stage
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml package.json ./
+
+COPY packages ./packages
+RUN pnpm --filter "@zemrev/config" build && \
+    pnpm --filter "@zemrev/db" build && \
+    pnpm --filter "@zemrev/models" build && \
+    pnpm --filter "@zemrev/redis" build && \
+    pnpm --filter "@zemrev/types" build && \
+    pnpm --filter "@zemrev/utils" build
+
 COPY services/auth-service ./services/auth-service
-
 WORKDIR /app/services/auth-service
-
 RUN pnpm build
 
 # Production stage
-FROM node:20-alpine
-
+FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Copy root files for workspace
-COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+RUN npm install -g pnpm && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
 
-# Copy all service package.json files
-COPY services/api-gateway/package.json ./services/api-gateway/
+COPY pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml package.json ./
+
+COPY packages/config/package.json ./packages/config/
+COPY packages/db/package.json ./packages/db/
+COPY packages/models/package.json ./packages/models/
+COPY packages/redis/package.json ./packages/redis/
+COPY packages/types/package.json ./packages/types/
+COPY packages/utils/package.json ./packages/utils/
 COPY services/auth-service/package.json ./services/auth-service/
-COPY services/credit-service/package.json ./services/credit-service/
-COPY services/user-service/package.json ./services/user-service/
 
-RUN npm install -g pnpm && pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod
 
-COPY services/auth-service ./services/auth-service
+COPY --from=builder /app/packages/config/dist ./packages/config/dist
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/models/dist ./packages/models/dist
+COPY --from=builder /app/packages/redis/dist ./packages/redis/dist
+COPY --from=builder /app/packages/types/dist ./packages/types/dist
+COPY --from=builder /app/packages/utils/dist ./packages/utils/dist
+
+COPY --from=builder /app/services/auth-service/dist ./services/auth-service/dist
 
 WORKDIR /app/services/auth-service
 
-COPY --from=builder /app/services/auth-service/dist ./dist
+USER nodejs
 
 EXPOSE 5001
 

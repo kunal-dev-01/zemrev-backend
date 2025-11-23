@@ -2,19 +2,32 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy root files for workspace
-COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+COPY pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml package.json ./
 
-# Copy all service package.json files
+COPY packages/config/package.json ./packages/config/
+COPY packages/db/package.json ./packages/db/
+COPY packages/models/package.json ./packages/models/
+COPY packages/redis/package.json ./packages/redis/
+COPY packages/types/package.json ./packages/types/
+COPY packages/utils/package.json ./packages/utils/
+
 COPY services/api-gateway/package.json ./services/api-gateway/
 COPY services/auth-service/package.json ./services/auth-service/
 COPY services/credit-service/package.json ./services/credit-service/
 COPY services/user-service/package.json ./services/user-service/
 
-# Install all dependencies including workspace
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
-# Copy source code
+COPY packages ./packages
+
+RUN pnpm --filter "@zemrev/config" build && \
+    pnpm --filter "@zemrev/db" build && \
+    pnpm --filter "@zemrev/models" build && \
+    pnpm --filter "@zemrev/redis" build && \
+    pnpm --filter "@zemrev/types" build && \
+    pnpm --filter "@zemrev/utils" build
+
 COPY services/credit-service ./services/credit-service
 
 WORKDIR /app/services/credit-service
