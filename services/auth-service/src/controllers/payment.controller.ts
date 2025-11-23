@@ -65,13 +65,33 @@ export default class PaymentController {
   // Stripe webhook
   // ----------------------------------------------------------
   static webhook = catchAsync(async (req: Request, res: Response) => {
-    const sig = req.headers["stripe-signature"] as string;
-    if (!sig) throw new AppError("Missing stripe-signature", 400);
+  const sig = req.headers["stripe-signature"] as string;
 
-    const event = stripe.webhooks.constructEvent(req.body, sig, env.STRIPE_WEBHOOK_SECRET);
+  if (!sig) {
+    console.error("❌ Webhook: Missing stripe-signature header");
+    throw new AppError("Missing stripe-signature", 400);
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error(`❌ Webhook signature verification failed: ${err}`);
+    throw new AppError(`Webhook Error: ${err}`, 400);
+  }
+
+  try {
     await StripeService.webhook(event);
-
     res.status(200).json({ received: true });
+  } catch (err) {
+    console.error(`❌ Webhook processing failed: ${err}`);    
+    res.status(200).json({ received: true, error: err });
+  }
   });
 
   // ----------------------------------------------------------
