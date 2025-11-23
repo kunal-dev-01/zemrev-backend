@@ -8,7 +8,7 @@ import env from "@/config/env.config.js";
 import { AppError, JWTService, EmailProducer } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
 import TwoFactorService from "./twoFactor.service.js";
-import AbuseDetectionService from "./abuseDetection.service.js";
+import {AbuseDetectionService} from "@zemrev/config";
 
 class AuthService {
   /**-------------------------------
