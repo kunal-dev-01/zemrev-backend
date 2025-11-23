@@ -5,7 +5,8 @@ import env from "@/config/env.config.js";
 import { User } from "@zemrev/models";
 import { AppError, JWTService } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
-import {AbuseDetectionService} from "@zemrev/config";
+import { AbuseDetectionService } from "@zemrev/config";
+import { sanitizeUser } from "./auth.service.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
@@ -34,19 +35,15 @@ class GoogleAuthService {
     );
   }
 
-  /**
-   * ✅ GENERATE GOOGLE AUTH URL WITH STATE (CSRF + FINGERPRINT)
-   */
   getGoogleAuthURL(fingerprint?: string): string {
-    // ✅ GENERATE STATE TOKEN (CSRF protection + fingerprint binding)
     const state = crypto.randomBytes(32).toString("hex");
+
     const stateData = {
       token: state,
       fingerprint: fingerprint || null,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    // ✅ STORE STATE IN REDIS (5 min expiry)
     redisService.storeOAuthState(state, stateData);
 
     const params = new URLSearchParams({
@@ -56,54 +53,41 @@ class GoogleAuthService {
       response_type: "code",
       prompt: "consent",
       scope: GOOGLE_SCOPES.join(" "),
-      state: state, // ✅ CSRF protection
+      state,
     });
 
     return `${GOOGLE_AUTH_URL}?${params.toString()}`;
   }
 
-  /**
-   * ✅ HANDLE GOOGLE CALLBACK WITH STATE VALIDATION
-   */
-  async handleGoogleCallback(
-    code: string, 
-    state: string,
-    fingerprint?: string
-  ) {
+  async handleGoogleCallback(code: string, state: string, fingerprint?: string) {
     try {
-      // ✅ VALIDATE STATE TOKEN (CSRF + Fingerprint)
       const stateData = await redisService.getOAuthState(state);
-      if (!stateData) {
-        throw new AppError("Invalid or expired state token", 401);
-      }
+      if (!stateData) throw new AppError("Invalid or expired state token", 401);
 
-      // ✅ VERIFY FINGERPRINT MATCHES (Prevent token hijacking)
+      // fingerprint lock
       if (stateData.fingerprint && fingerprint !== stateData.fingerprint) {
-        console.log(`⚠️ Fingerprint mismatch: ${stateData.fingerprint} vs ${fingerprint}`);
         throw new AppError("Security validation failed", 403);
       }
 
-      // ✅ CHECK ONE-ACCOUNT-PER-DAY RULE
+      // Multi-account protection
       if (fingerprint) {
         await AbuseDetectionService.multiAccount(fingerprint);
       }
 
-      // ✅ DELETE STATE TOKEN (Single use)
       await redisService.deleteOAuthState(state);
 
-      // ✅ EXCHANGE CODE FOR TOKENS
+      // Exchange code → tokens
       const { tokens } = await this.client.getToken(code);
-
       if (!tokens.access_token) {
         throw new AppError("Failed to obtain Google access token", 401);
       }
 
       this.client.setCredentials(tokens);
 
-      // ✅ GET USER INFO
+      // Fetch Google user info
       const googleUser = await this.getGoogleUserInfo(tokens.access_token);
 
-      // ✅ FIND OR CREATE USER (with fingerprint tracking)
+      // find or create user
       const user = await User.findOrCreateGoogleUser(
         {
           googleId: googleUser.id,
@@ -114,7 +98,7 @@ class GoogleAuthService {
         fingerprint
       );
 
-      // ✅ GENERATE JWT TOKENS
+      // JWT tokens
       const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
@@ -127,7 +111,7 @@ class GoogleAuthService {
       );
 
       return {
-        user: this.formatUser(user),
+        user: sanitizeUser(user),
         accessToken: jwtTokens.accessToken,
         refreshToken: jwtTokens.refreshToken,
         requiresPayment: user.status === "inactive",
@@ -139,9 +123,7 @@ class GoogleAuthService {
     }
   }
 
-  /**
-   * ✅ FETCH GOOGLE USER INFO
-   */
+
   private async getGoogleUserInfo(
     accessToken: string
   ): Promise<GoogleUserInfo> {
@@ -159,27 +141,6 @@ class GoogleAuthService {
       console.error("❌ Failed to fetch Google user info:", error);
       throw new AppError("Google user information fetch failed", 401);
     }
-  }
-
-  /**
-   * ✅ FORMAT USER RESPONSE
-   */
-  private formatUser(user: any) {
-    return {
-      fullName: user.fullName,
-      email: user.email,
-      credits: user.credits,
-      status: user.status,
-      role: user.role,
-      address: user.address,
-      isEmailVerified: user.isEmailVerified,
-      authProvider: user.authProvider,
-      isActive: user.isActive,
-      isBlocked: user.isBlocked,
-      twoFactorEnabled: user.twoFactorEnabled,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
   }
 }
 
