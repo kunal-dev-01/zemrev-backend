@@ -2,23 +2,45 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+# Copy root files for workspace
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 
-RUN npm install -g pnpm && pnpm install
+# Copy all service package.json files
+COPY services/api-gateway/package.json ./services/api-gateway/
+COPY services/auth-service/package.json ./services/auth-service/
+COPY services/credit-service/package.json ./services/credit-service/
+COPY services/user-service/package.json ./services/user-service/
 
-COPY . .
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+# Copy source code
+COPY services/auth-service ./services/auth-service
+
+WORKDIR /app/services/auth-service
 
 RUN pnpm build
 
+# Production stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+# Copy root files for workspace
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 
-RUN npm install -g pnpm && pnpm install --prod
+# Copy all service package.json files
+COPY services/api-gateway/package.json ./services/api-gateway/
+COPY services/auth-service/package.json ./services/auth-service/
+COPY services/credit-service/package.json ./services/credit-service/
+COPY services/user-service/package.json ./services/user-service/
 
-COPY --from=builder /app/dist ./dist
+RUN npm install -g pnpm && pnpm install --frozen-lockfile --prod
+
+COPY services/auth-service ./services/auth-service
+
+WORKDIR /app/services/auth-service
+
+COPY --from=builder /app/services/auth-service/dist ./dist
 
 EXPOSE 5001
 

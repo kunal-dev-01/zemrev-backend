@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "docker:dev": "docker-compose -f docker-compose.dev.yml up -d",
+    "docker:dev:clear": "docker system prune -a -f",
     "docker:dev:down": "docker-compose -f docker-compose.dev.yml down",
     "docker:dev:build": "docker-compose -f docker-compose.dev.yml build",
     "docker:dev:logs": "docker-compose -f docker-compose.dev.yml logs -f",

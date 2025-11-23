@@ -3,8 +3,8 @@ version: '3.8'
 services:
   api-gateway:
     build:
-      context: ./services/api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/api-gateway/Dockerfile
     container_name: api-gateway-prod
     ports:
       - "5000:5000"
@@ -32,8 +32,8 @@ services:
 
   auth-service:
     build:
-      context: ./services/auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
     container_name: auth-service-prod
     ports:
       - "5001:5001"
@@ -55,8 +55,8 @@ services:
 
   credit-service:
     build:
-      context: ./services/credit-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/credit-service/Dockerfile
     container_name: credit-service-prod
     ports:
       - "5003:5003"
@@ -78,8 +78,8 @@ services:
 
   user-service:
     build:
-      context: ./services/user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/user-service/Dockerfile
     container_name: user-service-prod
     ports:
       - "5002:5002"
