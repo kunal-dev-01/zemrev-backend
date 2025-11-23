@@ -20,6 +20,7 @@ connectDB().then(() => {
     console.log("   ✅ 2FA (TOTP + Backup Codes)");
     console.log("   ✅ JWT Token Management");
     console.log("   ✅ Password Reset");
+    console.log("   ✅ Payment Integration (Stripe)");
     console.log("=".repeat(70));
   });
 
