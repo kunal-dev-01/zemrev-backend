@@ -78,12 +78,4 @@ export default class AbuseDetectionService {
       console.log(`⚠️ ${uid} using guest credits after recent guest activity`);
   }
 
-  // ----------------------------------------------------------
-  // Cron: remove stale guests
-  // ----------------------------------------------------------
-  static async cleanup(): Promise<void> {
-    const ninetyDays = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const { deletedCount } = await GuestUser.deleteMany({ updatedAt: { $lt: ninetyDays }, isConverted: false });
-    console.log(`🧹 ${deletedCount} old guests removed`);
-  }
 }

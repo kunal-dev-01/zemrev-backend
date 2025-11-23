@@ -76,13 +76,12 @@ const guestUserSchema = new Schema<IGuestUser>(
 // Indexes
 guestUserSchema.index({ fingerprint: 1, lastResetAt: 1 });
 guestUserSchema.index({ isBlocked: 1, blockedUntil: 1 });
-guestUserSchema.index({ lastResetAt: 1 }); // For cleanup cron jobs
+guestUserSchema.index({ lastResetAt: 1 }); 
 
-// Auto-delete guests after 90 days of inactivity
 guestUserSchema.index(
   { updatedAt: 1 },
   {
-    expireAfterSeconds: 7776000, // 90 days
+    expireAfterSeconds: 2592000,
   }
 );
 
