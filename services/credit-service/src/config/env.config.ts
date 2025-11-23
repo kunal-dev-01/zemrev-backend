@@ -9,7 +9,10 @@ const envSchema = joi
   .object({
     PORT: joi.number().default(5000),
     NODE_ENV: joi.string().valid('development', 'production', 'test').default('development'),
-    CORS_ORIGIN: joi.string().uri().required(),
+    CORS_ORIGIN: joi
+      .alternatives()
+      .try(joi.string().uri(), joi.string())
+      .required(),
     MONGODB_URL: joi.string().uri().required(),
     JWT_ACCESS_SECRET: joi.string().required(),
     JWT_REFRESH_SECRET: joi.string().required(),

@@ -1,13 +1,19 @@
-import joi from 'joi';
-import dotenv from 'dotenv';
+import joi from "joi";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const envSchema = joi
   .object({
     PORT: joi.number().default(5000),
-    NODE_ENV: joi.string().valid('development', 'production', 'test').default('development'),
-    CORS_ORIGIN: joi.string().uri().required(),
+    NODE_ENV: joi
+      .string()
+      .valid("development", "production", "test")
+      .default("development"),
+    CORS_ORIGIN: joi
+      .alternatives()
+      .try(joi.string().uri(), joi.string())
+      .required(),
     MONGODB_URL: joi.string().uri().required(),
     GOOGLE_CLIENT_ID: joi.string().required(),
     GOOGLE_CLIENT_SECRET: joi.string().required(),
@@ -29,14 +35,14 @@ const envSchema = joi
 const { error, value } = envSchema.validate(process.env, { abortEarly: false });
 
 if (error) {
-  const details = error.details.map((d) => d.message).join(', ');
+  const details = error.details.map((d) => d.message).join(", ");
   console.error(`❌ Invalid environment configuration: ${details}`);
   process.exit(1);
 }
 
 export default value as {
   PORT: number;
-  NODE_ENV: 'development' | 'production' | 'test';
+  NODE_ENV: "development" | "production" | "test";
   CORS_ORIGIN: string;
   MONGODB_URL: string;
   GOOGLE_CLIENT_ID: string;
