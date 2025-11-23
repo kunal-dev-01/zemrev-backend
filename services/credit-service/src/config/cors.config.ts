@@ -12,6 +12,8 @@ export const corsOptions = {
     "x-user-id",
     "x-forwarded-for",
     "x-fingerprint",
+    "x-service-token",
+    "x-service-id",
   ],
   exposedHeaders: ["x-total-count", "x-page-count"],
   maxAge: 86400,
