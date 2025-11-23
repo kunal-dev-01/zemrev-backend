@@ -20,9 +20,6 @@ const envSchema = joi
     REDIS_PASSWORD: joi.string(),
     REDIS_HOST: joi.string(),
     REDIS_PORT: joi.number(),
-    STRIPE_SECRET_KEY: joi.string().required(),
-    STRIPE_PUBLISHABLE_KEY: joi.string().required(),
-    STRIPE_WEBHOOK_SECRET: joi.string().required(),
     CLIENT_URL: joi.string().uri().required(),
     NOTIFICATION_SERVICE_URL: joi.string().uri().required(),
   })
@@ -47,9 +44,6 @@ export default value as {
   REDIS_PASSWORD: string;
   REDIS_HOST: string;
   REDIS_PORT: number;
-  STRIPE_SECRET_KEY: string;
-  STRIPE_PUBLISHABLE_KEY: string;
-  STRIPE_WEBHOOK_SECRET: string;
   CLIENT_URL: string;
   NOTIFICATION_SERVICE_URL: string;
 };

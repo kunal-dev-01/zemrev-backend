@@ -16,15 +16,8 @@ const envSchema = joi
     MONGODB_URL: joi.string().uri().required(),
     JWT_ACCESS_SECRET: joi.string().required(),
     JWT_REFRESH_SECRET: joi.string().required(),
-    REDIS_USERNAME: joi.string(),
-    REDIS_PASSWORD: joi.string(),
-    REDIS_HOST: joi.string(),
-    REDIS_PORT: joi.number(),
-    STRIPE_SECRET_KEY: joi.string().required(),
-    STRIPE_PUBLISHABLE_KEY: joi.string().required(),
-    STRIPE_WEBHOOK_SECRET: joi.string().required(),
     CLIENT_URL: joi.string().uri().required(),
-    NOTIFICATION_SERVICE_URL: joi.string().uri().required(),
+    INTERNAL_SERVICE_SECRET: joi.string().required(),
   })
   .unknown(true);
 
@@ -44,5 +37,5 @@ export default value as {
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
   CLIENT_URL: string;
-  NOTIFICATION_SERVICE_URL: string;
+  INTERNAL_SERVICE_SECRET: string;
 };
