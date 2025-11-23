@@ -55,8 +55,6 @@ const userSchema = new Schema<IUser, IUserModel>(
       enum: Object.values(UserRole),
       default: UserRole.USER,
     },
-    
-    // 💳 CREDITS SYSTEM (NO PLANS)
     credits: {
       type: Number,
       default: 0,
@@ -69,15 +67,11 @@ const userSchema = new Schema<IUser, IUserModel>(
       default: "inactive",
       index: true,
     },
-    
-    // 💰 STRIPE (ONE-TIME PAYMENTS ONLY)
     stripeCustomerId: {
       type: String,
       sparse: true,
       index: true,
     },
-    
-    // 🔐 AUTHENTICATION
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -102,8 +96,6 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: Date,
       select: false,
     },
-    
-    // 🔒 TWO-FACTOR AUTH
     twoFactorSecret: {
       type: String,
       select: false,
@@ -120,8 +112,6 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: String,
       select: false,
     },
-    
-    // 🚫 ACCOUNT STATUS
     isActive: {
       type: Boolean,
       default: true,
@@ -129,6 +119,7 @@ const userSchema = new Schema<IUser, IUserModel>(
     isBlocked: {
       type: Boolean,
       default: false,
+      index: true,
     },
     blockedReason: {
       type: String,
@@ -141,11 +132,11 @@ const userSchema = new Schema<IUser, IUserModel>(
   }
 );
 
-// Indexes
+// ✅ COMPOUND INDEXES FOR PERFORMANCE
 userSchema.index({ email: 1, role: 1 });
 userSchema.index({ status: 1, credits: 1 });
+userSchema.index({ isActive: 1, isBlocked: 1 });
 
-// Pre-save hooks (keep existing password hashing)
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   if (this.password) {
@@ -160,7 +151,6 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-// Methods (keep existing)
 userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
@@ -173,13 +163,13 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp: number): boole
 };
 
 userSchema.statics.findOrCreateGoogleUser = async function (
-  profile: GoogleProfile
+  profile: GoogleProfile,
+  fingerprint?: string
 ): Promise<IUser> {
   try {
     let user = await this.findOne({ googleId: profile.googleId });
 
     if (user) {
-      // Update profile if changed
       let hasChanges = false;
       if (user.email !== profile.email) {
         user.email = profile.email;
@@ -195,7 +185,6 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       return user;
     }
 
-    // Check if email already exists (merge accounts)
     const existingEmailUser = await this.findOne({ email: profile.email });
     
     if (existingEmailUser) {
@@ -206,7 +195,6 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       return existingEmailUser;
     }
 
-    // ⚠️ NEW USER: Start with 0 credits, inactive status
     const newUser = await this.create({
       googleId: profile.googleId,
       authProvider: AuthProvider.GOOGLE,
@@ -217,6 +205,18 @@ userSchema.statics.findOrCreateGoogleUser = async function (
       credits: 0,
       status: "inactive",
     });
+
+    if (fingerprint) {
+      const { GuestUser } = await import("./guest.model.js");
+      await GuestUser.findOneAndUpdate(
+        { fingerprint, isConverted: false },
+        {
+          isConverted: true,
+          convertedAt: new Date(),
+          convertedToUserId: newUser._id,
+        }
+      );
+    }
 
     return newUser;
   } catch (err) {
