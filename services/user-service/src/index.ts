@@ -1,7 +1,6 @@
 import app from "./app.js";
 import { connectDB } from "@zemrev/db";
 import { handleUnhandledRejection, handleUncaughtException } from "@zemrev/utils";
-import { scheduleGuestCleanup } from "./jobs/cleanup.job.js";
 import env from "@/config/env.config.js";
 
 handleUncaughtException();
@@ -16,15 +15,10 @@ connectDB().then(() => {
     console.log("");
     console.log("⚡ FEATURES ACTIVE:");
     console.log("   ✅ User Profile Management");
-    console.log("   ✅ Credit System (Guest + Registered)");
-    console.log("   ✅ Payment Processing (Stripe)");
-    console.log("   ✅ Subscription Management");
-    console.log("   ✅ Internal Service Routes");
     console.log("=".repeat(70));
   });
 
   handleUnhandledRejection();
-  scheduleGuestCleanup();
 
   const shutdown = (signal: string) => {
     console.log(`\n🔄 Received ${signal}, shutting down...`);

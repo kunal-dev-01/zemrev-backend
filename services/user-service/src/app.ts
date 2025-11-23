@@ -8,8 +8,6 @@ import { globalErrorHandler, AppError } from "@zemrev/utils";
 import env from "@/config/env.config.js"
 
 import userRoutes from "./routes/user.routes.js";
-import creditRoutes from "./routes/credit.routes.js";
-import paymentRoutes from "./routes/payment.routes.js";
 
 const app: Express = express();
 
@@ -49,8 +47,6 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api/v1/user", userRoutes);
-app.use("/api/v1/credit", creditRoutes);
-app.use("/api/v1/payment", paymentRoutes);
 
 app.all("*", (req, _res, next) => {
   next(new AppError(`Route ${req.originalUrl} not found`, 404));
