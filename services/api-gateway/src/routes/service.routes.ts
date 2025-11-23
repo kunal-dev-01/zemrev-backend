@@ -13,26 +13,24 @@ const router: Router = Router();
 // ====================================
 
 router.use('/api/v1/auth', createServiceProxy('/api/v1/auth', SERVICES.AUTH_SERVICE));
-router.use('/api/v1/account', createServiceProxy('/api/v1/account', SERVICES.AUTH_SERVICE));
-router.use('/api/v1/2fa', createServiceProxy('/api/v1/2fa', SERVICES.AUTH_SERVICE));
+router.use('/api/v1/auth/verify', createServiceProxy('/api/v1/auth/verify', SERVICES.AUTH_SERVICE));
+router.use('/api/v1/payment', createServiceProxy('/api/v1/payment', SERVICES.AUTH_SERVICE));
 
 
 // ====================================
 // USER SERVICE
 // ====================================
 
-router.use('/api/v1/profile', createServiceProxy('/api/v1/profile', SERVICES.USER_SERVICE));
-router.use('/api/v1/update', createServiceProxy('/api/v1/update', SERVICES.USER_SERVICE));
-router.use('/api/v1/settings', createServiceProxy('/api/v1/settings', SERVICES.USER_SERVICE));
+router.use('/api/v1/user', createServiceProxy('/api/v1/user', SERVICES.USER_SERVICE));
+
 
 
 // ====================================
-// PROJECT SERVICE
+// CREDIT SERVICE
 // ====================================
 
-router.use('/api/v1/projects', createServiceProxy('/api/v1/projects', SERVICES.PROJECT_SERVICE));
-router.use('/api/v1/milestones', createServiceProxy('/api/v1/milestones', SERVICES.PROJECT_SERVICE));
-router.use('/api/v1/revision', createServiceProxy('/api/v1/revision', SERVICES.PROJECT_SERVICE));
+router.use('/api/v1/credit', createServiceProxy('/api/v1/credit', SERVICES.CREDIT_SERVICE));
+
 
 
 

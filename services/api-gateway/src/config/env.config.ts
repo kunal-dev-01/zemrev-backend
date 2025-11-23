@@ -11,6 +11,7 @@ const envSchema = Joi.object({
   PORT: Joi.number().default(5000),
   AUTH_SERVICE_URL: Joi.string().uri().required(),
   USER_SERVICE_URL: Joi.string().uri().required(),
+  CREDIT_SERVICE_URL: Joi.string().uri().required(),
   CORS_ORIGIN: Joi.string().optional(),
   NODE_ENV: Joi.string().default("development")
 }).unknown();

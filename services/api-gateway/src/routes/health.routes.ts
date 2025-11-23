@@ -28,7 +28,15 @@ router.get('/api/services', (_req: Request, res: Response) => {
     services: {
       auth: {
         url: SERVICES.AUTH_SERVICE,
-        endpoints: ['/api/v1/auth', '/api/v1/2fa']
+        endpoints: ['/api/v1/auth', '/api/v1/auth/verify', '/api/v1/payment']
+      },
+      user: {
+        url: SERVICES.USER_SERVICE,
+        endpoints: ['/api/v1/user']
+      },
+      credit: {
+        url: SERVICES.CREDIT_SERVICE,
+        endpoints: ['/api/v1/credit']
       }
     },
     gateway: {
