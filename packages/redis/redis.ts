@@ -1,5 +1,3 @@
-// src/modules/sessionService/redis.service.ts
-
 import { createClient, RedisClientType } from "redis";
 
 class RedisService {

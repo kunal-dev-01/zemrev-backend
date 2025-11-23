@@ -1,4 +1,3 @@
-import "dotenv/config";
 import express , { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -9,6 +8,8 @@ import { globalErrorHandler } from "@zemrev/utils";
 import env from "@/config/env.config.js";
 
 import authRoutes from "./routes/auth.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
+import authVerificationRoutes from "./routes/auth.verification.routes.js";
 const app: Express = express();
 
 app.set("trust proxy", 1);
@@ -47,6 +48,8 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/auth/verify", authVerificationRoutes);
+app.use("/api/v1/payment", paymentRoutes);
 
 app.all("*", (req, _res, next) => {
   const { AppError } = require("@zemrev/utils");
