@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { User, GuestUser, CREDIT_PRICING } from "@zemrev/models";
 import { AppError, catchAsync } from "@zemrev/utils";
-import CreditService from "../services/credit.service.js";
-import AbuseDetectionService from "@/services/abuseDetection.service.js";
+import CreditService from "@/services/credit.service.js";
+import {AbuseDetectionService} from "@zemrev/config";
 
 export default class CreditMiddleware {
   // ----------------------------------------------------------
@@ -72,7 +72,7 @@ export default class CreditMiddleware {
                 0,
                 CREDIT_PRICING.GUEST_DAILY_LIMIT - g.dailyCreditsUsed
               ),
-              resetAt: g.lastResetAt,
+              resetDate: g.lastResetAt,
             };
           }
 
