@@ -1,22 +1,9 @@
 import express, { type Router } from "express";
-import AuthController from "../controllers/auth.controller.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
-import rateLimit from "express-rate-limit";
+import AuthController from "@/controllers/auth.controller.js";
+import authMiddleware from "@/middlewares/authMiddleware.js";
+import {authLimiter, generalLimiter}  from "@zemrev/config";
 
 const router: Router = express.Router();
-
-const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
-  message: "Too many attempts, please try again later",
-  skipSuccessfulRequests: true,
-});
-
-const generalLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: "Too many requests, please try again later",
-});
 
 // PUBLIC ROUTES
 router.post("/signup", authLimiter, AuthController.signup);

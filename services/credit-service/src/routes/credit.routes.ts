@@ -1,16 +1,10 @@
 import express, { type Router } from "express";
-import CreditController from "../controllers/credit.controller.js";
+import CreditController from "@/controllers/credit.controller.js";
 import authMiddleware from "@/middlewares/authMiddleware.js";
 import creditMiddleware from "@/middlewares/creditMiddleware.js";
-import rateLimit from "express-rate-limit";
+import { limiter } from "@zemrev/config";
 
 const router: Router = express.Router();
-
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  message: "Too many requests",
-});
 
 router.use(limiter);
 router.use(authMiddleware.whoami);

@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@zemrev/utils": "workspace:*",
-    "@zemrev/models": "workspace:*"
+    "@zemrev/models": "workspace:*",
+    "express-rate-limit": "^7.1.5"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

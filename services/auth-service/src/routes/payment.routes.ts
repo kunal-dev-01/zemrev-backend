@@ -1,15 +1,9 @@
 import express , {type Router} from "express";
-import PaymentController from "../controllers/payment.controller.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
-import rateLimit from "express-rate-limit";
+import PaymentController from "@/controllers/payment.controller.js";
+import authMiddleware from "@/middlewares/authMiddleware.js";
+import { limiter } from "@zemrev/config";
 
 const router: Router = express.Router();
-
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  message: "Too many requests",
-});
 
 router.post(
   "/webhook",

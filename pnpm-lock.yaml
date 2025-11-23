@@ -35,6 +35,9 @@ importers:
       '@zemrev/utils':
         specifier: workspace:*
         version: link:../utils
+      express-rate-limit:
+        specifier: ^7.1.5
+        version: 7.5.1(express@4.21.2)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -304,6 +307,9 @@ importers:
 
   services/user-service:
     dependencies:
+      '@zemrev/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@zemrev/db':
         specifier: workspace:*
         version: link:../../packages/db
