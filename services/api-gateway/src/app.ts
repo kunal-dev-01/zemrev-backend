@@ -7,7 +7,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 
 // Configs
-import env from './config/env.config.js';
 import { corsOptions } from './config/cors.config.js';
 
 // Middlewares

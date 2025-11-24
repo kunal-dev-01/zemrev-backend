@@ -48,7 +48,7 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/auth/verify", authVerificationRoutes);
+app.use("/api/v1/auth-verify", authVerificationRoutes);
 app.use("/api/v1/payment", paymentRoutes);
 
 app.all("*", (req, _res, next) => {

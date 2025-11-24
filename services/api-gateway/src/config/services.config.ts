@@ -12,7 +12,7 @@ export const SERVICES = {
 
 export const SERVICE_ROUTES = {
   AUTH: {
-    paths: ['/api/v1/auth', '/api/v1/auth/verify' , '/api/v1/payment'],
+    paths: ['/api/v1/auth', '/api/v1/auth-verify' , '/api/v1/payment'],
     target: SERVICES.AUTH_SERVICE
   },
   USER: {

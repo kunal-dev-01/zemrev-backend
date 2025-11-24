@@ -13,7 +13,7 @@ const router: Router = Router();
 // ====================================
 
 router.use('/api/v1/auth', createServiceProxy('/api/v1/auth', SERVICES.AUTH_SERVICE));
-router.use('/api/v1/auth/verify', createServiceProxy('/api/v1/auth/verify', SERVICES.AUTH_SERVICE));
+router.use('/api/v1/auth-verify', createServiceProxy('/api/v1/auth-verify', SERVICES.AUTH_SERVICE));
 router.use('/api/v1/payment', createServiceProxy('/api/v1/payment', SERVICES.AUTH_SERVICE));
 
 
