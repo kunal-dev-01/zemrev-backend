@@ -33,7 +33,7 @@ class TwoFactorService {
       length: 32,
     });
 
-    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
     const backupCodes = this.generateBackupCodes();
     const hashed = backupCodes.map((c) =>
       crypto.createHash("sha256").update(c).digest("hex")
@@ -46,8 +46,9 @@ class TwoFactorService {
 
     return {
       secret: secret.base32,
-      qrCodeUrl,
+      qrCode,
       backupCodes,
+      manualEntryKey: secret.otpauth_url!,
     };
   }
 
