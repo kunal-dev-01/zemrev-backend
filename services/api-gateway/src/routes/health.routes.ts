@@ -28,7 +28,7 @@ router.get('/api/services', (_req: Request, res: Response) => {
     services: {
       auth: {
         url: SERVICES.AUTH_SERVICE,
-        endpoints: ['/api/v1/auth', '/api/v1/auth-verify', '/api/v1/payment']
+        endpoints: ['/api/v1/auth', '/api/v1/auth/verify', '/api/v1/payment']
       },
       user: {
         url: SERVICES.USER_SERVICE,
