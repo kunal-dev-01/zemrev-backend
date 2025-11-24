@@ -23,6 +23,10 @@ class TwoFactorService {
       throw new AppError("2FA already enabled", 400);
     }
 
+    if(user.authProvider === "google") {
+      throw new AppError("2FA not supported for Google users", 400);
+    }
+
     const secret = speakeasy.generateSecret({
       name: `${this.APP_NAME} (${user.email})`,
       issuer: this.APP_NAME,
@@ -53,6 +57,10 @@ class TwoFactorService {
     if (!user?.twoFactorSecret)
       throw new AppError("2FA setup incomplete", 400);
 
+    if(user.authProvider === "google") {
+      throw new AppError("2FA not supported for Google users", 400);
+    }
+
     const valid = speakeasy.totp.verify({
       secret: user.twoFactorSecret,
       encoding: "base32",
@@ -73,6 +81,10 @@ class TwoFactorService {
       "+password +twoFactorSecret"
     );
     if (!user) throw new AppError("User not found", 404);
+
+    if(user.authProvider === "google") {
+      throw new AppError("2FA not supported for Google users", 400);
+    }
 
     if (!(await user.comparePassword(password))) {
       throw new AppError("Invalid password", 401);
@@ -105,6 +117,10 @@ class TwoFactorService {
 
     if (!user?.twoFactorEnabled) {
       throw new AppError("2FA not enabled", 400);
+    }
+
+    if(user.authProvider === "google") {
+      throw new AppError("2FA not supported for Google users", 400);
     }
 
     if (isBackup) {
