@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
 import { corsOptions } from "@/config/cors.config.js";
-import { globalErrorHandler } from "@zemrev/utils";
+import { globalErrorHandler, AppError } from "@zemrev/utils";
 import env from "@/config/env.config.js";
 
 import authRoutes from "./routes/auth.routes.js";
@@ -52,7 +52,6 @@ app.use("/api/v1/auth/verify", authVerificationRoutes);
 app.use("/api/v1/payment", paymentRoutes);
 
 app.all("*", (req, _res, next) => {
-  const { AppError } = require("@zemrev/utils");
   next(new AppError(`Route ${req.originalUrl} not found`, 404));
 });
 
