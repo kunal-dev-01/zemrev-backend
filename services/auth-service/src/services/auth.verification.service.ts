@@ -1,11 +1,12 @@
 import { User } from "@zemrev/models";
-import { AppError, JWTService } from "@zemrev/utils";
+import { AppError, JWTService, EmailProducer } from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
 import env from "@/config/env.config.js";
-import {EmailProducer} from "@zemrev/utils";
 
 class AuthVerificationService {
-  /** VERIFY EMAIL */
+  // ==========================================================
+  // VERIFY EMAIL
+  // ==========================================================
   static async verifyEmail(token: string) {
     const hashed = JWTService.hashToken(token);
 
@@ -14,21 +15,32 @@ class AuthVerificationService {
       emailVerificationExpires: { $gt: Date.now() },
     });
 
-    if (!user) throw new AppError("Invalid or expired token", 400);
+    if (!user) {
+      throw new AppError("Invalid or expired token", 400);
+    }
 
     user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     user.isEmailVerified = true;
 
-    await user.save({ validateModifiedOnly: true });    
+    await user.save({ validateModifiedOnly: true });
+
     return true;
   }
 
-  /** RESEND EMAIL */
+  // ==========================================================
+  // RESEND EMAIL VERIFICATION
+  // ==========================================================
   static async resendVerificationEmail(email: string) {
     const user = await User.findOne({ email });
-    if (!user) throw new AppError("User not found", 404);
-    if (user.isEmailVerified) throw new AppError("Email already verified", 400);
+
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    if (user.isEmailVerified) {
+      throw new AppError("Email already verified", 400);
+    }
 
     const token = JWTService.generateEmailVerificationToken();
 
@@ -36,6 +48,7 @@ class AuthVerificationService {
     user.emailVerificationExpires = new Date(Date.now() + 86400000);
 
     await user.save({ validateModifiedOnly: true });
+
     const verificationUrl = `${env.CLIENT_URL}/auth/verify-email?token=${token}`;
 
     await EmailProducer.sendVerificationEmail(
@@ -43,23 +56,28 @@ class AuthVerificationService {
       user.fullName,
       verificationUrl,
       "Zemrev"
-    );    
+    );
   }
 
-  /** FORGOT PASSWORD */
+  // ==========================================================
+  // FORGOT PASSWORD
+  // ==========================================================
   static async forgotPassword(email: string) {
     const user = await User.findOne({ email });
-    if (!user) throw new AppError("Email not found", 404);
+
+    if (!user) {
+      throw new AppError("Email not found", 404);
+    }
 
     const token = JWTService.generatePasswordResetToken();
 
     user.passwordResetToken = JWTService.hashToken(token);
-    user.passwordResetExpires = new Date(Date.now() + 3600000);
+    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour
 
     await user.save({ validateModifiedOnly: true });
-    
+
     const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
-    
+
     await EmailProducer.sendPasswordResetEmail(
       user.email,
       user.fullName,
@@ -70,7 +88,9 @@ class AuthVerificationService {
     return true;
   }
 
-  /** RESET PASSWORD */
+  // ==========================================================
+  // RESET PASSWORD
+  // ==========================================================
   static async resetPassword(token: string, newPassword: string) {
     const hashed = JWTService.hashToken(token);
 
@@ -79,16 +99,19 @@ class AuthVerificationService {
       passwordResetExpires: { $gt: Date.now() },
     });
 
-    if (!user) throw new AppError("Invalid or expired token", 400);
+    if (!user) {
+      throw new AppError("Invalid or expired token", 400);
+    }
 
     user.password = newPassword;
-    user.passwordChangedAt = new Date(Date.now() - 1000);
+    user.passwordChangedAt = new Date(Date.now() - 1000); // invalidate old sessions
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
 
     await user.save({ validateModifiedOnly: true });
 
     await redisService.logoutAllDevices(user.id);
+
     return true;
   }
 }
