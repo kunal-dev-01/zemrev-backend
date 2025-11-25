@@ -12,16 +12,15 @@ class AuthController {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
 
-  private static setRefreshCookie(res: Response, token: string) {
+  private static setRefreshCookie(res: Response, token: string): void {
     res.cookie("refreshToken", token, this.COOKIE_OPTIONS);
   }
 
-  /**---------------------------
-   * ✅ SIGNUP (With fingerprint validation)
-   * ---------------------------*/
+  // ==========================================================
+  // SIGNUP (Fingerprint validation)
+  // ==========================================================
   static signup = catchAsync(async (req: Request, res: Response) => {
     const { fullName, email, password } = req.body;
-
     if (!fullName || !email || !password) {
       throw new AppError("Missing required fields", 400);
     }
@@ -47,13 +46,14 @@ class AuthController {
     });
   });
 
-  /**---------------------------
-   * ✅ LOGIN
-   * ---------------------------*/
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
   static login = catchAsync(async (req: Request, res: Response) => {
     const { email, password } = req.body;
-    if (!email || !password)
+    if (!email || !password) {
       throw new AppError("Email and password required", 400);
+    }
 
     const deviceInfo = req.headers["user-agent"] ?? "unknown";
     const result = await AuthService.login(email, password, deviceInfo);
@@ -67,21 +67,27 @@ class AuthController {
       return;
     }
 
-    this.setRefreshCookie(res, result.refreshToken);
+    this.setRefreshCookie(res, result.refreshToken ?? "");
 
     res.status(200).json({
       status: "success",
       message: "Login successful",
-      data: { user: result.user, accessToken: result.accessToken },
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+      },
     });
   });
 
-  /**---------------------------
-   * ✅ VERIFY 2FA
-   * ---------------------------*/
+  // ==========================================================
+  // VERIFY 2FA
+  // ==========================================================
   static verify2FA = catchAsync(async (req: Request, res: Response) => {
     const { tempToken, totpCode, superKey, isBackupCode } = req.body;
-    if (!tempToken || !totpCode) throw new AppError("Missing 2FA details", 400);
+
+    if (!tempToken || !totpCode) {
+      throw new AppError("Missing 2FA details", 400);
+    }
 
     const result = await AuthService.verify2FA(
       tempToken,
@@ -95,22 +101,25 @@ class AuthController {
     res.status(200).json({
       status: "success",
       message: "2FA verified",
-      data: { user: result.user, accessToken: result.accessToken },
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+      },
     });
   });
 
-  /**---------------------------
-   * ✅ GOOGLE AUTH (With fingerprint)
-   * ---------------------------*/
+  // ==========================================================
+  // GOOGLE AUTH (With fingerprint)
+  // ==========================================================
   static googleAuth = catchAsync(async (req: Request, res: Response) => {
     const fingerprint = req.query.fp as string | undefined;
     const authUrl = googleService.getGoogleAuthURL(fingerprint);
     res.redirect(authUrl);
   });
 
-  /**---------------------------
-   * ✅ GOOGLE CALLBACK (With state validation)
-   * ---------------------------*/
+  // ==========================================================
+  // GOOGLE CALLBACK
+  // ==========================================================
   static googleCallback = catchAsync(async (req: Request, res: Response) => {
     const { code, state } = req.query as any;
 
@@ -127,19 +136,20 @@ class AuthController {
 
     this.setRefreshCookie(res, result.refreshToken);
 
-    // ✅ FIX: Include user data in redirect
     const userData = encodeURIComponent(JSON.stringify(result.user));
     const redirectUrl = `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}&user=${userData}`;
 
     res.redirect(redirectUrl);
   });
 
-  /**---------------------------
-   * ✅ REFRESH TOKEN
-   * ---------------------------*/
+  // ==========================================================
+  // REFRESH TOKEN
+  // ==========================================================
   static refreshToken = catchAsync(async (req: Request, res: Response) => {
     const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) throw new AppError("Refresh token missing", 401);
+    if (!refreshToken) {
+      throw new AppError("Refresh token missing", 401);
+    }
 
     const newAccessToken = await AuthService.refreshAccessToken(refreshToken);
 
@@ -149,31 +159,42 @@ class AuthController {
     });
   });
 
-  /**---------------------------
-   * ✅ LOGOUT
-   * ---------------------------*/
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
   static logout = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
     const refreshToken = req.cookies.refreshToken;
 
-    if (!userId || !refreshToken) throw new AppError("Invalid request", 400);
+    if (!userId || !refreshToken) {
+      throw new AppError("Invalid request", 400);
+    }
 
     await AuthService.logout(userId, refreshToken);
     res.clearCookie("refreshToken");
 
-    res.status(200).json({ status: "success", message: "Logged out" });
+    res.status(200).json({
+      status: "success",
+      message: "Logged out",
+    });
   });
 
+  // ==========================================================
+  // LOGOUT ALL DEVICES
+  // ==========================================================
   static logoutAll = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
-    if (!userId) throw new AppError("Invalid request", 400);
+    if (!userId) {
+      throw new AppError("Invalid request", 400);
+    }
 
     await AuthService.logoutAll(userId);
     res.clearCookie("refreshToken");
 
-    res
-      .status(200)
-      .json({ status: "success", message: "Logged out from all devices" });
+    res.status(200).json({
+      status: "success",
+      message: "Logged out from all devices",
+    });
   });
 }
 
