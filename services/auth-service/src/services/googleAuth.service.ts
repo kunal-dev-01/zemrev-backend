@@ -65,9 +65,13 @@ class GoogleAuthService {
       if (!stateData) throw new AppError("Invalid or expired state token", 401);
 
       // fingerprint lock
-      if (stateData.fingerprint && fingerprint !== stateData.fingerprint) {
+      if (stateData.fingerprint) {
+      if (!fingerprint) {
+        console.warn("⚠️ Fingerprint expected but not received");
+      } else if (fingerprint !== stateData.fingerprint) {
         throw new AppError("Security validation failed", 403);
       }
+    }
 
       // Multi-account protection
       if (fingerprint) {

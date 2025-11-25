@@ -116,7 +116,7 @@ class AuthController {
     if (!code) throw new AppError("Authorization code missing", 400);
     if (!state) throw new AppError("State token missing", 400);
 
-    const fingerprint = req.headers["x-fingerprint"] as string;
+    const fingerprint = req.headers["x-fingerprint"] as string | undefined;
 
     const result = await googleService.handleGoogleCallback(
       code, 
