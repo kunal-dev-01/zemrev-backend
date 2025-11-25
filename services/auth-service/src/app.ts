@@ -47,8 +47,8 @@ app.get("/", (_req, res) => {
   res.send("🔐 Auth Service v2.2 - Production Ready ⚡");
 });
 
-app.use("/api/v1/auth/verify", authVerificationRoutes);
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/verify", authVerificationRoutes);
 app.use("/api/v1/payment", paymentRoutes);
 
 app.all("*", (req, _res, next) => {
