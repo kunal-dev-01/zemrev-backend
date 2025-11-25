@@ -112,10 +112,6 @@ class AuthService {
       "+password +twoFactorSecret +superKey"
     );
 
-    if(user?.authProvider === "google") {
-      throw new AppError("User Is Connected With Google Account Please Login Using Google", 400);
-    }
-
     if (!user || !(await user.comparePassword(password))) {
       throw new AppError("Invalid credentials", 401);
     }
