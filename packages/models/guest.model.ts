@@ -54,6 +54,10 @@ const guestUserSchema = new Schema<IGuestUser>(
       default: false,
       index: true,
     },
+    userAgent: {
+      type: String,
+      default: "unknown",
+    },
 
     blockedUntil: {
       type: Date,

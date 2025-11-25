@@ -9,6 +9,7 @@ export interface IGuestUser extends Document {
   requestCount: number;
   lastRequestTime: Date;
   isBlocked: boolean;
+  userAgent: string;
   blockedUntil?: Date;
   blockedReason?: string;
   isConverted: boolean;
