@@ -8,6 +8,9 @@ import { redisService } from "@zemrev/redis";
 import { AbuseDetectionService } from "@zemrev/config";
 import { sanitizeUser } from "./auth.service.js";
 
+// ==========================================================
+// CONSTANTS
+// ==========================================================
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
 
@@ -16,6 +19,9 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+// ==========================================================
+// TYPES
+// ==========================================================
 interface GoogleUserInfo {
   id: string;
   email: string;
@@ -35,16 +41,19 @@ class GoogleAuthService {
     );
   }
 
+  // ==========================================================
+  // BUILD GOOGLE AUTH URL
+  // ==========================================================
   getGoogleAuthURL(fingerprint?: string): string {
-    const state = crypto.randomBytes(32).toString("hex");
+    const stateToken = crypto.randomBytes(32).toString("hex");
 
     const stateData = {
-      token: state,
-      fingerprint: fingerprint || null,
+      token: stateToken,
+      fingerprint: fingerprint ?? null,
       timestamp: Date.now(),
     };
 
-    redisService.storeOAuthState(state, stateData);
+    redisService.storeOAuthState(stateToken, stateData);
 
     const params = new URLSearchParams({
       redirect_uri: env.GOOGLE_REDIRECT_URI,
@@ -53,14 +62,16 @@ class GoogleAuthService {
       response_type: "code",
       prompt: "consent",
       scope: GOOGLE_SCOPES.join(" "),
-      state,
+      state: stateToken,
     });
 
-    // ✅ ADD: Append fingerprint to URL if exists
     const url = `${GOOGLE_AUTH_URL}?${params.toString()}`;
     return fingerprint ? `${url}&fp=${fingerprint}` : url;
   }
 
+  // ==========================================================
+  // HANDLE GOOGLE CALLBACK
+  // ==========================================================
   async handleGoogleCallback(
     code: string,
     state: string,
@@ -68,7 +79,9 @@ class GoogleAuthService {
   ) {
     try {
       const stateData = await redisService.getOAuthState(state);
-      if (!stateData) throw new AppError("Invalid or expired state token", 401);
+      if (!stateData) {
+        throw new AppError("Invalid or expired state token", 401);
+      }
 
       // fingerprint lock
       if (stateData.fingerprint) {
@@ -79,14 +92,14 @@ class GoogleAuthService {
         }
       }
 
-      // Multi-account protection
+      // One-account-per-device safeguard
       if (fingerprint) {
         await AbuseDetectionService.multiAccount(fingerprint);
       }
 
       await redisService.deleteOAuthState(state);
 
-      // Exchange code → tokens
+      // Exchange code → Google tokens
       const { tokens } = await this.client.getToken(code);
       if (!tokens.access_token) {
         throw new AppError("Failed to obtain Google access token", 401);
@@ -94,10 +107,10 @@ class GoogleAuthService {
 
       this.client.setCredentials(tokens);
 
-      // Fetch Google user info
+      // Fetch Google profile
       const googleUser = await this.getGoogleUserInfo(tokens.access_token);
 
-      // find or create user
+      // Create or connect user
       const user = await User.findOrCreateGoogleUser(
         {
           googleId: googleUser.id,
@@ -108,7 +121,7 @@ class GoogleAuthService {
         fingerprint
       );
 
-      // JWT tokens
+      // JWT pair
       const jwtTokens = JWTService.generateTokenPair({
         userId: user._id.toString(),
         email: user.email,
@@ -125,13 +138,16 @@ class GoogleAuthService {
         accessToken: jwtTokens.accessToken,
         refreshToken: jwtTokens.refreshToken,
       };
-    } catch (error) {
-      console.error("❌ Google OAuth Error:", error);
-      if (error instanceof AppError) throw error;
+    } catch (err) {
+      console.error("❌ Google OAuth Error:", err);
+      if (err instanceof AppError) throw err;
       throw new AppError("Google authentication failed", 401);
     }
   }
 
+  // ==========================================================
+  // FETCH GOOGLE USER INFO
+  // ==========================================================
   private async getGoogleUserInfo(
     accessToken: string
   ): Promise<GoogleUserInfo> {
@@ -145,8 +161,8 @@ class GoogleAuthService {
       }
 
       return data;
-    } catch (error) {
-      console.error("❌ Failed to fetch Google user info:", error);
+    } catch (err) {
+      console.error("❌ Failed to fetch Google user info:", err);
       throw new AppError("Google user information fetch failed", 401);
     }
   }
