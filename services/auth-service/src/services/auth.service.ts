@@ -96,8 +96,7 @@ class AuthService {
     return {
       user: sanitizeUser(user),
       accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      requiresPayment: true,
+      refreshToken: tokens.refreshToken
     };
   }
 
@@ -112,6 +111,10 @@ class AuthService {
     const user = await User.findOne({ email, isActive: true }).select(
       "+password +twoFactorSecret +superKey"
     );
+
+    if(user?.authProvider === "google") {
+      throw new AppError("User Is Connected With Google Account Please Login Using Google", 400);
+    }
 
     if (!user || !(await user.comparePassword(password))) {
       throw new AppError("Invalid credentials", 401);

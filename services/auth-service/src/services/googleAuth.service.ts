@@ -114,7 +114,6 @@ class GoogleAuthService {
         user: sanitizeUser(user),
         accessToken: jwtTokens.accessToken,
         refreshToken: jwtTokens.refreshToken,
-        requiresPayment: user.status === "inactive",
       };
     } catch (error) {
       console.error("❌ Google OAuth Error:", error);

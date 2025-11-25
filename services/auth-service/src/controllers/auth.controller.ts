@@ -42,8 +42,7 @@ class AuthController {
       message: "Account created. Complete payment to activate your account.",
       data: {
         user: result.user,
-        accessToken: result.accessToken,
-        requiresPayment: result.requiresPayment,
+        accessToken: result.accessToken
       },
     });
   });
@@ -128,9 +127,7 @@ class AuthController {
     this.setRefreshCookie(res, result.refreshToken);
 
     // ✅ REDIRECT WITH TOKEN
-    const redirectUrl = result.requiresPayment
-      ? `${env.CLIENT_URL}/auth/payment-required?token=${result.accessToken}`
-      : `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}`;
+    const redirectUrl = `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}`;
 
     res.redirect(redirectUrl);
   });
