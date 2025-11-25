@@ -4,9 +4,9 @@ import twoFactorService from "@/services/twoFactor.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
 
 class AuthVerificationController {
-  /**---------------------------
-   * Verify Email
-   * ---------------------------*/
+  // ==========================================================
+  // VERIFY EMAIL
+  // ==========================================================
   static verifyEmail = catchAsync(async (req: Request, res: Response) => {
     const { token } = req.params;
 
@@ -19,24 +19,26 @@ class AuthVerificationController {
     });
   });
 
-  /**---------------------------
-   * Resend email verification
-   * ---------------------------*/
-  static resendVerificationEmail = catchAsync(async (req: Request, res: Response) => {
-    const { email } = req.body;
-    if (!email) throw new AppError("Email is required", 400);
+  // ==========================================================
+  // RESEND VERIFICATION EMAIL
+  // ==========================================================
+  static resendVerificationEmail = catchAsync(
+    async (req: Request, res: Response) => {
+      const { email } = req.body;
+      if (!email) throw new AppError("Email is required", 400);
 
-    await VerificationService.resendVerificationEmail(email);
+      await VerificationService.resendVerificationEmail(email);
 
-    res.status(200).json({
-      status: "success",
-      message: "Verification email sent",
-    });
-  });
+      res.status(200).json({
+        status: "success",
+        message: "Verification email sent",
+      });
+    }
+  );
 
-  /**---------------------------
-   * Forgot Password
-   * ---------------------------*/
+  // ==========================================================
+  // FORGOT PASSWORD
+  // ==========================================================
   static forgotPassword = catchAsync(async (req: Request, res: Response) => {
     const { email } = req.body;
     if (!email) throw new AppError("Email required", 400);
@@ -49,9 +51,9 @@ class AuthVerificationController {
     });
   });
 
-  /**---------------------------
-   * Reset Password
-   * ---------------------------*/
+  // ==========================================================
+  // RESET PASSWORD
+  // ==========================================================
   static resetPassword = catchAsync(async (req: Request, res: Response) => {
     const { resetPasswordToken, newPassword } = req.body;
 
@@ -67,9 +69,9 @@ class AuthVerificationController {
     });
   });
 
-  /**---------------------------
-   * 2FA Routes
-   * ---------------------------*/
+  // ==========================================================
+  // 2FA: SETUP
+  // ==========================================================
   static setup2FA = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
     if (!userId) throw new AppError("Invalid request", 400);
@@ -83,11 +85,16 @@ class AuthVerificationController {
     });
   });
 
+  // ==========================================================
+  // 2FA: ENABLE
+  // ==========================================================
   static enable2FA = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
     const { totpCode } = req.body;
 
-    if (!userId || !totpCode) throw new AppError("Missing data", 400);
+    if (!userId || !totpCode) {
+      throw new AppError("Missing data", 400);
+    }
 
     const enabled = await twoFactorService.enable2FA(userId, totpCode);
 
@@ -98,13 +105,22 @@ class AuthVerificationController {
     });
   });
 
+  // ==========================================================
+  // 2FA: DISABLE
+  // ==========================================================
   static disable2FA = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?._id;
     const { password, totpCode } = req.body;
 
-    if (!userId || !password) throw new AppError("Missing data", 400);
+    if (!userId || !password) {
+      throw new AppError("Missing data", 400);
+    }
 
-    const disabled = await twoFactorService.disable2FA(userId, password, totpCode);
+    const disabled = await twoFactorService.disable2FA(
+      userId,
+      password,
+      totpCode
+    );
 
     res.status(200).json({
       status: "success",
@@ -113,20 +129,30 @@ class AuthVerificationController {
     });
   });
 
-  static regenerateBackupCodes = catchAsync(async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-    const { password } = req.body;
+  // ==========================================================
+  // 2FA: REGENERATE BACKUP CODES
+  // ==========================================================
+  static regenerateBackupCodes = catchAsync(
+    async (req: Request, res: Response) => {
+      const userId = req.user?._id;
+      const { password } = req.body;
 
-    if (!userId || !password) throw new AppError("Missing fields", 400);
+      if (!userId || !password) {
+        throw new AppError("Missing fields", 400);
+      }
 
-    const codes = await twoFactorService.regenerateBackupCodes(userId, password);
+      const codes = await twoFactorService.regenerateBackupCodes(
+        userId,
+        password
+      );
 
-    res.status(200).json({
-      status: "success",
-      message: "Backup codes regenerated",
-      data: { backupCodes: codes },
-    });
-  });
+      res.status(200).json({
+        status: "success",
+        message: "Backup codes regenerated",
+        data: { backupCodes: codes },
+      });
+    }
+  );
 }
 
 export default AuthVerificationController;
