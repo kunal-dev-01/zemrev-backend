@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import AuthService from "@/services/auth.service.js"; 
+import AuthService from "@/services/auth.service.js";
 import googleService from "@/services/googleAuth.service.js";
 import { catchAsync, AppError } from "@zemrev/utils";
 import env from "@/config/env.config.js";
@@ -42,7 +42,7 @@ class AuthController {
       message: "Account created. Complete payment to activate your account.",
       data: {
         user: result.user,
-        accessToken: result.accessToken
+        accessToken: result.accessToken,
       },
     });
   });
@@ -52,7 +52,8 @@ class AuthController {
    * ---------------------------*/
   static login = catchAsync(async (req: Request, res: Response) => {
     const { email, password } = req.body;
-    if (!email || !password) throw new AppError("Email and password required", 400);
+    if (!email || !password)
+      throw new AppError("Email and password required", 400);
 
     const deviceInfo = req.headers["user-agent"] ?? "unknown";
     const result = await AuthService.login(email, password, deviceInfo);
@@ -102,7 +103,7 @@ class AuthController {
    * ✅ GOOGLE AUTH (With fingerprint)
    * ---------------------------*/
   static googleAuth = catchAsync(async (req: Request, res: Response) => {
-    const fingerprint = req.headers["x-fingerprint"] as string;
+    const fingerprint = req.query.fp as string | undefined;
     const authUrl = googleService.getGoogleAuthURL(fingerprint);
     res.redirect(authUrl);
   });
@@ -112,22 +113,23 @@ class AuthController {
    * ---------------------------*/
   static googleCallback = catchAsync(async (req: Request, res: Response) => {
     const { code, state } = req.query as any;
-    
+
     if (!code) throw new AppError("Authorization code missing", 400);
     if (!state) throw new AppError("State token missing", 400);
 
-    const fingerprint = req.headers["x-fingerprint"] as string | undefined;
+    const fingerprint = req.query.fp as string | undefined;
 
     const result = await googleService.handleGoogleCallback(
-      code, 
+      code,
       state,
       fingerprint
     );
 
     this.setRefreshCookie(res, result.refreshToken);
 
-    // ✅ REDIRECT WITH TOKEN
-    const redirectUrl = `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}`;
+    // ✅ FIX: Include user data in redirect
+    const userData = encodeURIComponent(JSON.stringify(result.user));
+    const redirectUrl = `${env.CLIENT_URL}/auth/callback?token=${result.accessToken}&user=${userData}`;
 
     res.redirect(redirectUrl);
   });
@@ -169,7 +171,9 @@ class AuthController {
     await AuthService.logoutAll(userId);
     res.clearCookie("refreshToken");
 
-    res.status(200).json({ status: "success", message: "Logged out from all devices" });
+    res
+      .status(200)
+      .json({ status: "success", message: "Logged out from all devices" });
   });
 }
 

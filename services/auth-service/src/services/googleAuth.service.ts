@@ -56,22 +56,28 @@ class GoogleAuthService {
       state,
     });
 
-    return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+    // ✅ ADD: Append fingerprint to URL if exists
+    const url = `${GOOGLE_AUTH_URL}?${params.toString()}`;
+    return fingerprint ? `${url}&fp=${fingerprint}` : url;
   }
 
-  async handleGoogleCallback(code: string, state: string, fingerprint?: string) {
+  async handleGoogleCallback(
+    code: string,
+    state: string,
+    fingerprint?: string
+  ) {
     try {
       const stateData = await redisService.getOAuthState(state);
       if (!stateData) throw new AppError("Invalid or expired state token", 401);
 
       // fingerprint lock
       if (stateData.fingerprint) {
-      if (!fingerprint) {
-        console.warn("⚠️ Fingerprint expected but not received");
-      } else if (fingerprint !== stateData.fingerprint) {
-        throw new AppError("Security validation failed", 403);
+        if (!fingerprint) {
+          console.warn("⚠️ Fingerprint expected but not received");
+        } else if (fingerprint !== stateData.fingerprint) {
+          throw new AppError("Security validation failed", 403);
+        }
       }
-    }
 
       // Multi-account protection
       if (fingerprint) {
@@ -125,7 +131,6 @@ class GoogleAuthService {
       throw new AppError("Google authentication failed", 401);
     }
   }
-
 
   private async getGoogleUserInfo(
     accessToken: string
