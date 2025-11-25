@@ -5,11 +5,18 @@ import {
   SignupData,
 } from "@zemrev/models";
 import env from "@/config/env.config.js";
-import { AppError, JWTService, EmailProducer } from "@zemrev/utils";
+import {
+  AppError,
+  JWTService,
+  EmailProducer,
+} from "@zemrev/utils";
 import { redisService } from "@zemrev/redis";
 import TwoFactorService from "./twoFactor.service.js";
 import { AbuseDetectionService } from "@zemrev/config";
 
+// ==========================================================
+// SANITIZER
+// ==========================================================
 export const sanitizeUser = (user: any) => {
   const userObj = user.toObject ? user.toObject() : user;
 
@@ -29,24 +36,26 @@ export const sanitizeUser = (user: any) => {
 };
 
 class AuthService {
-  /**-------------------------------
-   * USER SIGNUP
-   * -------------------------------*/
+  // ==========================================================
+  // USER SIGNUP
+  // ==========================================================
   static async signup(
     data: SignupData & { fingerprint?: string }
-  ): Promise<any> {
+  ) {
     const { email, fingerprint } = data;
 
-    // Email check
+    // Email exists check
     const existingUser = await User.findOne({ email });
-    if (existingUser) throw new AppError("Email already registered", 400);
+    if (existingUser) {
+      throw new AppError("Email already registered", 400);
+    }
 
-    // Abuse prevention
+    // Abuse: One-account-per-device
     if (fingerprint) {
       await AbuseDetectionService.multiAccount(fingerprint);
     }
 
-    // Create user
+    // Create base user
     const user = await User.create({
       fullName: data.fullName,
       email,
@@ -56,7 +65,7 @@ class AuthService {
       role: UserRole.USER,
     });
 
-    // Convert guest → user
+    // Convert Guest -> User
     if (fingerprint) {
       await GuestUser.findOneAndUpdate(
         { fingerprint, isConverted: false },
@@ -68,7 +77,7 @@ class AuthService {
       );
     }
 
-    // Email verification
+    // Email verification setup
     const token = JWTService.generateEmailVerificationToken();
 
     user.emailVerificationToken = JWTService.hashToken(token);
@@ -91,26 +100,30 @@ class AuthService {
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(user.id, tokens.refreshToken);
+    await redisService.storeRefreshToken(
+      user.id,
+      tokens.refreshToken
+    );
 
     return {
       user: sanitizeUser(user),
       accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
+      refreshToken: tokens.refreshToken,
     };
   }
 
-  /**-------------------------------
-   * LOGIN
-   * -------------------------------*/
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
   static async login(
     email: string,
     password: string,
     deviceInfo?: string
-  ): Promise<any> {
-    const user = await User.findOne({ email, isActive: true }).select(
-      "+password +twoFactorSecret +superKey"
-    );
+  ) {
+    const user = await User.findOne({
+      email,
+      isActive: true,
+    }).select("+password +twoFactorSecret +superKey");
 
     if (user?.authProvider === "google") {
       throw new AppError("User Login with Google", 403);
@@ -121,10 +134,13 @@ class AuthService {
     }
 
     if (user.isBlocked) {
-      throw new AppError(`Account blocked: ${user.blockedReason}`, 403);
+      throw new AppError(
+        `Account blocked: ${user.blockedReason}`,
+        403
+      );
     }
 
-    // 2FA flow
+    // 2FA required
     if (user.twoFactorEnabled) {
       const tempToken = JWTService.generateEmailVerificationToken();
       await redisService.store2FAToken(user.id, tempToken);
@@ -136,14 +152,18 @@ class AuthService {
       };
     }
 
-    // Normal login
+    // Standard login
     const tokens = JWTService.generateTokenPair({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(user.id, tokens.refreshToken, deviceInfo);
+    await redisService.storeRefreshToken(
+      user.id,
+      tokens.refreshToken,
+      deviceInfo
+    );
 
     return {
       user: sanitizeUser(user),
@@ -152,9 +172,9 @@ class AuthService {
     };
   }
 
-  /**-------------------------------
-   * VERIFY 2FA LOGIN
-   * -------------------------------*/
+  // ==========================================================
+  // VERIFY 2FA LOGIN
+  // ==========================================================
   static async verify2FA(
     tempToken: string,
     totpCode: string,
@@ -162,14 +182,18 @@ class AuthService {
     superKey?: string
   ) {
     const userId = await redisService.getUserIdFromTempToken(tempToken);
-    if (!userId) throw new AppError("Session expired. Login again.", 401);
+    if (!userId) {
+      throw new AppError("Session expired. Login again.", 401);
+    }
 
     const user = await User.findById(userId).select(
       "+twoFactorSecret +superKey"
     );
-    if (!user) throw new AppError("Invalid session", 401);
+    if (!user) {
+      throw new AppError("Invalid session", 401);
+    }
 
-    // Admin super key check
+    // Super key validation (admin only)
     if (user.role === UserRole.ADMIN && superKey !== user.superKey) {
       throw new AppError("Invalid super key", 401);
     }
@@ -181,7 +205,9 @@ class AuthService {
       totpCode,
       isBackup
     );
-    if (!verified) throw new AppError("Invalid 2FA code", 401);
+    if (!verified) {
+      throw new AppError("Invalid 2FA code", 401);
+    }
 
     await redisService.delete2FAToken(userId);
 
@@ -191,7 +217,10 @@ class AuthService {
       role: user.role,
     });
 
-    await redisService.storeRefreshToken(userId, tokens.refreshToken);
+    await redisService.storeRefreshToken(
+      userId,
+      tokens.refreshToken
+    );
 
     return {
       user: sanitizeUser(user),
@@ -200,20 +229,26 @@ class AuthService {
     };
   }
 
-  /**-------------------------------
-   * REFRESH ACCESS TOKEN
-   * -------------------------------*/
-  static async refreshAccessToken(refreshToken: string): Promise<string> {
+  // ==========================================================
+  // REFRESH ACCESS TOKEN
+  // ==========================================================
+  static async refreshAccessToken(
+    refreshToken: string
+  ): Promise<string> {
     const decoded = JWTService.verifyRefreshToken(refreshToken);
 
     const exists = await redisService.verifyRefreshToken(
       decoded.userId,
       refreshToken
     );
-    if (!exists) throw new AppError("Invalid refresh token", 401);
+    if (!exists) {
+      throw new AppError("Invalid refresh token", 401);
+    }
 
     const user = await User.findById(decoded.userId);
-    if (!user?.isActive) throw new AppError("User not found", 401);
+    if (!user?.isActive) {
+      throw new AppError("User not found", 401);
+    }
 
     return JWTService.generateAccessToken({
       userId: user.id,
@@ -222,9 +257,9 @@ class AuthService {
     });
   }
 
-  /**-------------------------------
-   * LOGOUT
-   * -------------------------------*/
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
   static async logout(userId: string, refreshToken: string) {
     await redisService.deleteRefreshToken(userId, refreshToken);
   }
