@@ -61,6 +61,9 @@ importers:
 
   packages/models:
     dependencies:
+      '@zemrev/utils':
+        specifier: workspace:*
+        version: link:../utils
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3

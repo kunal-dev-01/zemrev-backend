@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
+import { AppError } from "@zemrev/utils";
 import {
   IUser,
   IUserModel,
@@ -151,12 +152,16 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-userSchema.methods.changedPasswordAfter = function (JWTTimestamp: number): boolean {
+userSchema.methods.changedPasswordAfter = function (
+  JWTTimestamp: number
+): boolean {
   if (!this.passwordChangedAt) return false;
   const changedTimestamp = Math.floor(this.passwordChangedAt.getTime() / 1000);
   return JWTTimestamp < changedTimestamp;
@@ -186,13 +191,17 @@ userSchema.statics.findOrCreateGoogleUser = async function (
     }
 
     const existingEmailUser = await this.findOne({ email: profile.email });
-    
+
     if (existingEmailUser) {
-      existingEmailUser.googleId = profile.googleId;
-      existingEmailUser.authProvider = AuthProvider.GOOGLE;
-      existingEmailUser.isEmailVerified = true;
-      await existingEmailUser.save({ validateModifiedOnly: true });
-      return existingEmailUser;
+      if (existingEmailUser.authProvider === AuthProvider.GOOGLE) {
+        existingEmailUser.googleId = profile.googleId;
+        existingEmailUser.authProvider = AuthProvider.GOOGLE;
+        existingEmailUser.isEmailVerified = true;
+        await existingEmailUser.save({ validateModifiedOnly: true });
+        return existingEmailUser;
+      } else {
+        throw new AppError("User Logged in with Local provider", 400);
+      }
     }
 
     const newUser = await this.create({
